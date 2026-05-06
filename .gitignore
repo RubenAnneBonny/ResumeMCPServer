@@ -1,0 +1,36 @@
+# --- Privacy: real personal data must never be committed ---
+data/personal_info.json
+output/
+
+# --- Python ---
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# --- Tectonic ---
+.tectonic-cache/
+
+# --- LaTeX intermediates (in case anything escapes output/) ---
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+
+# --- Editor / OS ---
+.idea/
+.vscode/
+!.vscode/settings.json
+*.swp
+.DS_Store
+Thumbs.db

@@ -1,0 +1,266 @@
+<# Resume template. Jinja2 delimiters: << expr >>, pct tag pct, hash comment hash. All user content flows through the |tex filter. #>
+% =============================================================
+%  Resume template — rendered by Jinja2 + compiled by Tectonic
+%  All user content flows through the |tex filter (LaTeX escape).
+%  This file MUST contain only generic placeholders — no real names,
+%  no real schools, no real bullets. Review before every commit.
+% =============================================================
+\documentclass[<< ui.page.size|default("a4paper")|tex >>,<< ui.page.font_size|default("11pt")|tex >>]{article}
+\usepackage{latexsym}
+\usepackage{xcolor}
+\usepackage{float}
+\usepackage{ragged2e}
+\usepackage[empty]{fullpage}
+\usepackage{wrapfig}
+\usepackage{tabularx}
+\usepackage{titlesec}
+\usepackage{geometry}
+\usepackage{marvosym}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+% fontawesome5 omitted — crashes tectonic on Windows due to OTF font loading
+\usepackage{multicol}
+\usepackage{graphicx}
+\usepackage{cfr-lm}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\setlength{\multicolsep}{<< ui.spacing.multicolsep|default("0pt")|tex >>}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+\geometry{left=<< ui.page.margin_left|default("1.4cm")|tex >>, top=<< ui.page.margin_top|default("0.8cm")|tex >>, right=<< ui.page.margin_right|default("1.2cm")|tex >>, bottom=<< ui.page.margin_bottom|default("1.0cm")|tex >>}
+\usepackage[most]{tcolorbox}
+\tcbset{
+    frame code={},
+    center title,
+    left=0pt,
+    right=0pt,
+    top=0pt,
+    bottom=0pt,
+    colback=<< ui.colors.tcolorbox_bg|default("gray!20")|tex >>,
+    colframe=white,
+    width=\dimexpr\textwidth\relax,
+    enlarge left by=-2mm,
+    boxsep=4pt,
+    arc=0pt,outer arc=0pt,
+}
+
+\urlstyle{same}
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting
+\titleformat{\section}{
+  \vspace{<< ui.section_heading.vspace_before|default("-4pt")|tex >>}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{<< ui.section_heading.vspace_after|default("-7pt")|tex >>}]
+
+%-------------------------
+% Custom commands
+\newcommand{\resumeItem}[2]{
+  \item{
+    \textbf{#1}{\hspace{0.5mm}#2 \vspace{-0.5mm}}
+  }
+}
+
+\newcommand{\resumeSubheading}[4]{
+\vspace{0.5mm}\item
+    \begin{tabular*}{0.98\textwidth}[t]{l@{\extracolsep{\fill}}r}
+        \textbf{#1} & \textit{\footnotesize{#4}} \\
+        #3 &  \footnotesize{}\\
+    \end{tabular*}
+    \vspace{-2.4mm}
+}
+
+\newcommand{\resumeProject}[4]{
+\vspace{0.5mm}\item
+    \begin{tabular*}{0.98\textwidth}[t]{l@{\extracolsep{\fill}}r}
+        \textbf{#1} & \textit{\footnotesize{#3}} \\
+        #2 & \footnotesize{#4}
+    \end{tabular*}
+    \vspace{-2.4mm}
+}
+
+\renewcommand{\labelitemi}{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=*,labelsep=0mm]}
+\newcommand{\resumeItemListStart}{\begin{justify}\begin{itemize}[leftmargin=3ex, rightmargin=2ex, noitemsep,labelsep=1.2mm,itemsep=0mm]\small}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}\vspace{2mm}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\end{justify}\vspace{-2mm}}
+
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}%
+\newcolumntype{R}{>{\raggedleft\arraybackslash}X}%
+\newcolumntype{C}{>{\centering\arraybackslash}X}%
+
+%-------------------------------------------
+\begin{document}
+\fontfamily{<< ui.fonts.family|default("cmr")|tex >>}\selectfont
+
+%----------HEADING-----------------
+\begin{center}
+    \parbox{\dimexpr\textwidth}{
+        \centering
+        \textbf{\<< ui.header.name_size|default("Large")|tex >> << name|tex >>} \\[4pt]
+<% if title %>        \textit{<< title|tex >>} \\[8pt]
+<% endif %>
+<% if contact and contact.email %>        << contact.email|tex >><% if contact.links %> \,\textbar\,
+<% for link in contact.links %>        \href{<< link.url|tex >>}{<< (link.display or link.label or link.url)|tex >>}<% if not loop.last %> \,\textbar\, <% endif %>
+<% endfor %>
+<% endif %>
+        \\[4pt]
+<% endif %>
+<% if contact and contact.phone %>        << contact.phone|tex >>
+<% endif %>
+    }
+\end{center}
+
+<# ---------- Profile / Summary ---------- #>
+<% if summary %>
+\section{\textbf{Profile}}
+<< summary|tex >>
+\vspace{-2mm}
+<% endif %>
+
+<# ---------- Education ---------- #>
+<% if education %>
+\section{\textbf{Education}}
+\begin{itemize}[leftmargin=0.05in, label={}]
+\small{
+<% for ed in education %>
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{<< ed.degree|tex >>}<% if ed.institution %>, \textit{<< ed.institution|tex >><% if ed.location %>, << ed.location|tex >><% endif %>}<% endif %> & \textit{<< ed.start_date|tex >><% if ed.end_date and ed.end_date != ed.start_date %>--<< ed.end_date|tex >><% endif %>}
+        \end{tabular*}\\
+<% if ed.gpa %>        GPA: << ed.gpa|tex >>
+<% endif %>
+<% for h in ed.highlights %>        << h.text|tex >>
+<% endfor %>
+    }
+<% endfor %>
+}
+\end{itemize}
+\vspace{-6mm}
+<% endif %>
+
+<# ---------- Experience ---------- #>
+<% if experience %>
+\section{\textbf{Experience}}
+\begin{itemize}[leftmargin=0.05in, label={}]
+\small{
+<% for exp in experience %>
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{<< exp.title|tex >>, << exp.company|tex >>} & \textit{<< exp.start_date|tex >><% if exp.end_date and exp.end_date != exp.start_date %>--<< exp.end_date|tex >><% endif %>}
+        \end{tabular*}\\
+<% for h in exp.highlights %>        << h.text|tex >>
+<% endfor %>
+    }
+<% endfor %>
+}
+\end{itemize}
+\vspace{-6mm}
+<% endif %>
+
+<# ---------- Competitions and Projects ---------- #>
+<% set has_comp_proj = (competitions and competitions|length > 0) or (projects is defined and projects and projects|length > 0) %>
+<% if has_comp_proj %>
+\section{\textbf{Competitions and Projects}}
+\begin{itemize}[leftmargin=0.05in, label={}]
+\small{
+<% if competitions %>
+<% for c in competitions %>
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{<< c.name|tex >>}<% if c.placement %> --- \textit{<< c.placement|tex >>}<% endif %> & \textit{<< c.date|tex >>}
+        \end{tabular*}\\
+<% for h in c.highlights %>        << h.text|tex >>
+<% endfor %>
+    }
+<% endfor %>
+<% endif %>
+<% if projects is defined and projects %>
+<% for p in projects %>
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{<< p.name|tex >>}<% if p.tech %> --- \textit{<< p.tech|map("tex")|join(", ") >>}<% endif %> &
+        \end{tabular*}\\
+<% for h in p.highlights %>        << h.text|tex >>
+<% endfor %>
+    }
+<% endfor %>
+<% endif %>
+}
+\end{itemize}
+\vspace{-16pt}
+<% endif %>
+
+<# ---------- Technical Skills ---------- #>
+<% if skills %>
+<% set has_skills = (skills.languages is defined and skills.languages) or (skills.frameworks is defined and skills.frameworks) or (skills.tools is defined and skills.tools) %>
+<% if has_skills %>
+\section{\textbf{Technical Skills}}
+\begin{itemize}[leftmargin=0.05in, label={}]
+\small{
+<% if skills.languages is defined and skills.languages %>    \item{\textbf{Programming Languages}: << skills.languages|map("tex")|join(", ") >>}
+<% endif %>
+<% if skills.frameworks is defined and skills.frameworks %>    \item{\textbf{Frameworks \& Libraries}: << skills.frameworks|map("tex")|join(", ") >>}
+<% endif %>
+<% if skills.tools is defined and skills.tools %>    \item{\textbf{Developer Tools}: << skills.tools|map("tex")|join(", ") >>}
+<% endif %>
+<% if skills.data_structures is defined and skills.data_structures %>    \item{\textbf{Data Structures}: << skills.data_structures|map("tex")|join(", ") >>}
+<% endif %>
+<% if skills.algorithms is defined and skills.algorithms %>    \item{\textbf{Algorithms}: << skills.algorithms|map("tex")|join(", ") >>}
+<% endif %>
+}
+\end{itemize}
+\vspace{-16pt}
+<% endif %>
+<% endif %>
+
+<# ---------- Voluntary Work ---------- #>
+<% if voluntary_work is defined and voluntary_work %>
+\section{\textbf{Voluntary Work and Engagements}}
+\begin{itemize}[leftmargin=0.05in, label={}]
+\small{
+<% for v in voluntary_work %>
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{<< v.title|tex >>, << v.organization|tex >>} & \textit{<< v.start_date|tex >><% if v.end_date and v.end_date != v.start_date %>--<< v.end_date|tex >><% endif %>}
+        \end{tabular*}\\
+<% for h in v.highlights %>        << h.text|tex >>
+<% endfor %>
+    }
+<% endfor %>
+}
+\end{itemize}
+\vspace{-16pt}
+<% endif %>
+
+<# ---------- Certifications ---------- #>
+<% if certifications is defined and certifications %>
+\section{\textbf{Certifications}}
+\begin{itemize}[leftmargin=0.05in, label={}]
+\small{
+<% for cert in certifications %>    \item{\textbf{<< cert.name|tex >>}<% if cert.issuer %> --- << cert.issuer|tex >><% endif %><% if cert.date %> (<< cert.date|tex >>)<% endif %>}
+<% endfor %>
+}
+\end{itemize}
+\vspace{-16pt}
+<% endif %>
+
+<# ---------- Languages ---------- #>
+<% if languages is defined and languages %>
+\section{\textbf{Languages}}
+\begin{itemize}[leftmargin=0.05in, label={}]
+\small{
+<% for lang in languages %>    \item{\textbf{<< lang.language|tex >>}: << lang.proficiency|tex >>}
+<% endfor %>
+}
+\end{itemize}
+\vspace{-16pt}
+<% endif %>
+
+\end{document}

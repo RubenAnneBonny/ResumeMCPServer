@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "resume": {
+      "command": "uv",
+      "args": ["run", "--directory", ".", "resume-mcp-server"]
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "page": {
+    "size": "a4paper",
+    "font_size": "11pt",
+    "margin_left": "1.4cm",
+    "margin_top": "0.8cm",
+    "margin_right": "1.2cm",
+    "margin_bottom": "1.0cm",
+    "max_pages": 1
+  },
+  "fonts": {
+    "main": "Computer Modern Roman",
+    "family": "cmr",
+    "encoding": "T1"
+  },
+  "colors": {
+    "accent": "#000000",
+    "section_rule": "#000000",
+    "tcolorbox_bg": "gray!20"
+  },
+  "section_heading": {
+    "style": "smallcaps",
+    "size": "large",
+    "rule": true,
+    "align": "raggedright",
+    "vspace_before": "-4pt",
+    "vspace_after": "-7pt"
+  },
+  "spacing": {
+    "section": "0.5mm",
+    "item": "0.5mm",
+    "multicolsep": "0pt"
+  },
+  "header": {
+    "layout": "centered",
+    "show_title": true,
+    "show_icons": true,
+    "icon_set": "fontawesome5",
+    "name_size": "Large",
+    "name_weight": "bold"
+  },
+  "date_format": "YYYY",
+  "bullet_style": "tiny-bullet",
+  "voice": {
+    "person": "third",
+    "tense": "past_for_past_jobs"
+  }
+}

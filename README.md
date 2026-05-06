@@ -1,0 +1,119 @@
+# Resume MCP Server
+
+A local [Model Context Protocol](https://modelcontextprotocol.io) server that turns a verbose personal-info catalogue into a tailored, JD-specific resume PDF. The server's job is to expose well-shaped data, validate writes, render a Jinja2 LaTeX template, and compile it via [Tectonic](https://tectonic-typesetting.github.io). The *tailoring* — picking which jobs/projects/bullets matter for a given job description, and rewriting them — happens in the LLM.
+
+Works with any MCP-capable client: Claude Code, Claude Desktop, Cursor, Continue, Cline, Zed, or anything built on the official MCP SDKs.
+
+## How it's structured
+
+- `data/personal_info.json` — your full catalogue (every job, project, competition, every bullet you might ever want). Verbose by design. **Gitignored** — this file holds your real data.
+- `data/personal_info.example.json` — committed dummy data. On first run, copied to `personal_info.json` if it's missing.
+- `data/ui_guidelines.json` — style knobs: fonts, accent colour, margins, voice (person/tense). Committed.
+- `templates/resume.tex.j2` — the single Jinja2 LaTeX template. Generic placeholders only.
+- `output/` — generated `.tex` and `.pdf` files. **Gitignored**.
+
+## First-run setup
+
+1. Install **uv** (Python package/runtime manager):
+   - Windows: `winget install astral-sh.uv`
+   - macOS / Linux: see [docs.astral.sh/uv](https://docs.astral.sh/uv/getting-started/installation/)
+2. Install **Tectonic** (LaTeX → PDF):
+   - Windows: `winget install TectonicTypesetting.Tectonic`
+   - macOS: `brew install tectonic`
+   - Linux: see [tectonic-typesetting.github.io](https://tectonic-typesetting.github.io)
+   - The first compile downloads LaTeX packages — slow once, then cached.
+3. From the repo root: `uv sync`
+4. Edit `data/personal_info.json` with your real content. (It's auto-created from the example on first use.)
+5. Edit `data/ui_guidelines.json` to taste, or leave defaults.
+6. Wire up your MCP client (see below).
+7. Ask it: *"Generate a resume tailored to this JD: …"*
+
+## MCP client configuration
+
+The server speaks stdio MCP. Any MCP-capable client can launch it. Replace `<ABS_PATH>` with the absolute path to this repo.
+
+### Claude Code
+
+A `.mcp.json` is bundled at the repo root. Open this directory in Claude Code and approve the `resume` server when prompted. No further config needed.
+
+### Claude Desktop
+
+Edit `%APPDATA%\Claude\claude_desktop_config.json` (Windows) or `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
+
+```json
+{
+  "mcpServers": {
+    "resume": {
+      "command": "uv",
+      "args": ["run", "--directory", "<ABS_PATH>", "resume-mcp-server"]
+    }
+  }
+}
+```
+
+### Cursor
+
+Edit `~/.cursor/mcp.json` (or `.cursor/mcp.json` per-project) — same shape as above.
+
+### Continue
+
+In `~/.continue/config.yaml`:
+
+```yaml
+mcpServers:
+  - name: resume
+    command: uv
+    args: ["run", "--directory", "<ABS_PATH>", "resume-mcp-server"]
+```
+
+### Cline / Zed / others
+
+Every MCP client documents a config block taking a `command` plus `args`. Use:
+
+```
+command: uv
+args:    run --directory <ABS_PATH> resume-mcp-server
+```
+
+### Custom client (Python / TypeScript SDK)
+
+Spawn the server directly via stdio using the official `@modelcontextprotocol/sdk` (TS) or `mcp` (Python) package; same command/args.
+
+## Tools exposed
+
+| Tool | Purpose |
+|---|---|
+| `get_personal_info()` | Return the full catalogue. |
+| `get_ui_guidelines()` | Return the current style knobs. |
+| `update_personal_info(content)` | Whole-file write. Validated; atomic. |
+| `update_ui_guidelines(content)` | Whole-file write. Validated; atomic. |
+| `get_resume_schema()` | Returns the expected shape for `generate_resume`'s `content`, plus tailoring guidance. |
+| `generate_resume(name, content, compile=True)` | Render `.tex`, optionally compile to `.pdf`. Returns paths and any compiler output. |
+| `list_resumes()` | List previously generated outputs. |
+| `check_environment()` | Diagnostics: are required files present, is Tectonic installed. |
+
+## Privacy / public-repo hygiene
+
+This repo is meant to be public. Real content lives only on your machine.
+
+**Tracked:**
+- `data/personal_info.example.json` — dummy data only.
+- `data/ui_guidelines.json` — style knobs, no personal data.
+- `templates/resume.tex.j2` — generic placeholders only.
+- All source code, `pyproject.toml`, `README.md`, `.mcp.json`.
+
+**Gitignored:**
+- `data/personal_info.json` — the real catalogue.
+- `output/` — rendered `.tex` and `.pdf` files contain personal data.
+- `.venv/`, `__pycache__/`, `.tectonic-cache/`, etc.
+
+Always run `git status` before pushing — if anything from `data/` or `output/` shows up unexpectedly, stop and investigate.
+
+## Tailoring model (how the agent uses this)
+
+`personal_info.json` is the **complete catalogue** — intentionally larger than any single resume. For a given JD, the agent makes two independent decisions:
+
+1. **Item selection per section.** From each section, pick the items most relevant to the JD. Counts are agent-driven by relevance, not hardcoded.
+2. **Bullet selection + rewriting.** For each item that *was* selected, pick the 2–4 highlights most relevant to the JD and rewrite them to match `ui_guidelines.voice` and the language of the JD.
+
+`narrative` fields exist as background context for the agent only — they should never be copied verbatim into the resume.

@@ -1,0 +1,143 @@
+{
+  "name": "Alex Lindqvist",
+  "title": "2nd year B.Sc. in Engineering Physics",
+  "contact": {
+    "email": "alex.lindqvist@example.com",
+    "phone": "+46 70-123 45 67",
+    "location": "Stockholm, Sweden",
+    "links": [
+      { "label": "LinkedIn", "url": "https://www.linkedin.com/in/alex-lindqvist-example/", "display": "LinkedIn Profile" }
+    ]
+  },
+  "summary": "Engineering Physics student at Chalmers with a strong background in competitive programming and applied mathematics. Silver medalist in the Swedish Olympiad in Informatics and finalist in the Baltic Olympiad in Informatics, with hands-on experience in C++, Python, and numerical methods. Experienced in developing simulation tools for physics research.",
+  "education": [
+    {
+      "id": "chalmers-bsc",
+      "degree": "Engineering Physics, 2nd Year",
+      "institution": "Chalmers University of Technology",
+      "location": "Gothenburg, Sweden",
+      "start_date": "2024",
+      "end_date": "Present",
+      "narrative": "Focus on mathematical modelling, numerical analysis, and programming. Member of the student competitive programming club.",
+      "highlights": [],
+      "gpa": "4.5/5.0"
+    },
+    {
+      "id": "nta-gymnasium",
+      "degree": "Natural Science and Technology",
+      "institution": "NTI Gymnasium",
+      "location": "Gothenburg, Sweden",
+      "start_date": "2021",
+      "end_date": "2024",
+      "narrative": "Specialised in mathematics and computer science.",
+      "highlights": [],
+      "gpa": "21.8/22.5"
+    },
+    {
+      "id": "gothenburg-uni-math",
+      "degree": "Mathematics 1",
+      "institution": "University of Gothenburg",
+      "location": "Gothenburg, Sweden",
+      "start_date": "2023",
+      "end_date": "2024",
+      "narrative": "Completed 30 ECTS of university-level mathematics during upper secondary school.",
+      "highlights": [
+        { "text": "Completed 30 ECTS of university-level mathematics during upper secondary school, including Linear Algebra, Single Variable Calculus, Multivariable Calculus, and Discrete Mathematics. Achieved top grades (A).", "tags": ["mathematics"] }
+      ],
+      "gpa": ""
+    }
+  ],
+  "experience": [
+    {
+      "id": "lab-assistant",
+      "title": "Laboratory Assistant, Physics Department",
+      "company": "Chalmers University of Technology",
+      "location": "Gothenburg, Sweden",
+      "start_date": "2025",
+      "end_date": "Present",
+      "narrative": "Assisted professors and PhD students with data collection and analysis for condensed matter experiments.",
+      "highlights": [
+        { "text": "Assisted researchers with data collection and numerical analysis for condensed matter physics experiments.", "tags": ["research", "physics"] }
+      ],
+      "tech": ["Python", "NumPy", "Matplotlib"]
+    }
+  ],
+  "competitions": [
+    {
+      "id": "boi-silver",
+      "name": "Silver Medal: Baltic Olympiad in Informatics",
+      "placement": "Silver Medal",
+      "date": "2024",
+      "narrative": "Top-5 national finish qualified for the Baltic regional olympiad.",
+      "highlights": [
+        { "text": "Competed against top students from Baltic and Nordic countries, solving advanced algorithmic problems under strict time constraints.", "tags": ["algorithms", "competitive"] }
+      ]
+    },
+    {
+      "id": "nwerc-2025",
+      "name": "Place 71 / 145: NWERC, ICPC Regional Contest",
+      "placement": "71st of 145 teams",
+      "date": "2025",
+      "narrative": "Team of three, five-hour programming contest held in Hamburg.",
+      "highlights": [
+        { "text": "Participated in a 5-hour team programming contest in Hamburg. As second-year students, ranked 3rd out of 5 Chalmers teams.", "tags": ["algorithms", "competitive", "teamwork"] }
+      ]
+    },
+    {
+      "id": "saab-hackathon",
+      "name": "Participant: Ericsson AI Hackathon",
+      "placement": "",
+      "date": "2025",
+      "narrative": "48-hour industry hackathon focused on applying ML to network optimisation.",
+      "highlights": [
+        { "text": "Collaborated in a team of five to develop a reinforcement-learning agent for dynamic 5G network resource allocation, reducing simulated drop rates by 18%.", "tags": ["ml", "networking", "teamwork"] }
+      ]
+    },
+    {
+      "id": "swedish-oi",
+      "name": "Place 8 / 40: Swedish Olympiad in Informatics",
+      "placement": "8th of 40",
+      "date": "2023--2024",
+      "narrative": "National finals in competitive programming.",
+      "highlights": [
+        { "text": "Ranked among the top fifth nationally, demonstrating strong problem-solving, algorithmic reasoning, and independent coding skills.", "tags": ["algorithms", "competitive"] }
+      ]
+    },
+    {
+      "id": "codeforces-rating",
+      "name": "Codeforces Rating: 1841",
+      "placement": "",
+      "date": "2024--Present",
+      "narrative": "Active competitive programmer on Codeforces.",
+      "highlights": [
+        { "text": "Maintaining a high competitive programming rating through regular international contests, consistently solving challenging algorithmic problems in C++ and Python.", "tags": ["algorithms", "competitive"] }
+      ]
+    }
+  ],
+  "projects": [],
+  "skills": {
+    "languages": ["Python", "C++", "Julia", "SQL"],
+    "frameworks": ["PyTorch", "NumPy", "Matplotlib", "SciPy"],
+    "tools": ["Git", "Visual Studio Code", "Linux", "LaTeX", "MATLAB"],
+    "data_structures": ["Segment Trees", "Fenwick Trees", "Disjoint Set Union (DSU)", "Heaps", "Hash Tables"],
+    "algorithms": ["Dijkstra's Algorithm", "Dynamic Programming", "Network Flow", "Graph Traversals", "Greedy Algorithms"]
+  },
+  "voluntary_work": [
+    {
+      "id": "coding-club-president",
+      "title": "President, Competitive Programming Club",
+      "organization": "Chalmers University of Technology",
+      "start_date": "2024",
+      "end_date": "Present",
+      "highlights": [
+        { "text": "Organised weekly training sessions and coordinated participation in regional and national contests. Grew club membership from 12 to 35 active members.", "tags": ["leadership", "teaching"] }
+      ]
+    }
+  ],
+  "languages": [
+    { "language": "Swedish", "proficiency": "Native" },
+    { "language": "English", "proficiency": "Fluent" },
+    { "language": "German", "proficiency": "Intermediate" }
+  ],
+  "certifications": []
+}

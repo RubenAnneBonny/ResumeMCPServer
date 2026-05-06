@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir C:UsersrubenGithubResumeMCPServer *)",
+      "Bash(uv --version)",
+      "Bash(tectonic --version)",
+      "Bash(dir *)",
+      "Bash(uv run *)",
+      "PowerShell(ls \"$env:USERPROFILE\\\\.cargo\\\\bin\\\\uv.exe\" 2>$null; ls \"C:\\\\Users\\\\ruben\\\\.local\\\\bin\\\\uv.exe\" 2>$null; Get-ChildItem \"C:\\\\Users\\\\ruben\" -Filter \"uv.exe\" -Recurse -Depth 4 -ErrorAction SilentlyContinue | Select-Object -First 5)",
+      "PowerShell(pip show *)",
+      "mcp__resume__get_personal_info",
+      "mcp__resume__update_personal_info",
+      "mcp__resume__generate_resume",
+      "mcp__resume__get_resume_schema",
+      "mcp__resume__get_ui_guidelines",
+      "Bash(python *)",
+      "mcp__resume__research_company",
+      "mcp__resume__list_resumes"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "resume"
+  ],
+  "disabledMcpjsonServers": []
+}
