@@ -66,6 +66,27 @@ mcpServers:
     args: ["run", "--directory", "<ABS_PATH>", "resume-mcp-server"]
 ```
 
+### ChatGPT Desktop
+
+Requires the **ChatGPT desktop app** (Windows or macOS) and a **ChatGPT Plus / Pro subscription**. The browser-only web app does not support local MCP servers.
+
+OpenAI's desktop app reads MCP servers from a JSON config file. The exact path has changed between app releases — open **Settings → Beta features** (or **Connected tools**) in the app to find the current config location, or check [OpenAI's MCP documentation](https://platform.openai.com/docs/mcp). The content follows the same shape as Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "resume": {
+      "command": "uv",
+      "args": ["run", "--directory", "<ABS_PATH>", "resume-mcp-server"]
+    }
+  }
+}
+```
+
+Restart the desktop app after saving. The `resume` tools will appear in the tool picker (paperclip / tools icon) in a new chat.
+
+> **Note:** ChatGPT cannot open or preview local PDF files — `generate_resume` will still run and report the output path, but you will need to open the PDF yourself. All text-based tools (`get_personal_info`, `get_resume_schema`, `research_company`, etc.) work normally.
+
 ### Cline / Zed / others
 
 Every MCP client documents a config block taking a `command` plus `args`. Use:
