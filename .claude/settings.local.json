@@ -15,7 +15,9 @@
       "mcp__resume__get_ui_guidelines",
       "Bash(python *)",
       "mcp__resume__research_company",
-      "mcp__resume__list_resumes"
+      "mcp__resume__list_resumes",
+      "Bash(tectonic aquatic_quant_intern_2027.tex)",
+      "mcp__resume__compile_resume"
     ]
   },
   "enabledMcpjsonServers": [

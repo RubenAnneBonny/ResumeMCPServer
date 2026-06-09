@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "mcp__resume__generate_resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/scripts/post_generate_reminder.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__resume__get_interview_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/scripts/post_interview_reminder.py\""
+          }
+        ]
+      }
+    ]
+  }
+}

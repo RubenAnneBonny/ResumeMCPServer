@@ -108,8 +108,11 @@ Spawn the server directly via stdio using the official `@modelcontextprotocol/sd
 | `get_ui_guidelines()` | Return the current style knobs. |
 | `update_personal_info(content)` | Whole-file write. Validated; atomic. |
 | `update_ui_guidelines(content)` | Whole-file write. Validated; atomic. |
-| `get_resume_schema()` | Returns the expected shape for `generate_resume`'s `content`, plus tailoring guidance. |
+| `get_resume_schema()` | Returns the expected shape for `generate_resume`'s `content`, plus the mandatory critical-tailoring guidance. |
+| `get_relevance_review_prompt(company, job_description)` | Build the pre-generation recruiter ranking prompt (embeds the full catalogue). Run it in a fresh sub-agent to score every entry 0–5. |
 | `generate_resume(name, content, compile=True)` | Render `.tex`, optionally compile to `.pdf`. Returns paths and any compiler output. |
+| `get_resume_critique_prompt(name, company, job_description)` | Build the post-generation recruiter critique prompt (embeds the rendered `.tex`). Run it in a fresh sub-agent for missing keywords + per-item feedback + gaps worth interviewing about. |
+| `get_interview_prompt(section, target_id, topic, company, job_description, focus)` | Build a prompt to interview the user and enrich one catalogue entry (refine or create). Run it **yourself in the conversation** (not a sub-agent) — drops weak answers, saves on approval. General by default; targeted when job context is passed. |
 | `list_resumes()` | List previously generated outputs. |
 | `check_environment()` | Diagnostics: are required files present, is Tectonic installed. |
 
@@ -138,3 +141,16 @@ Always run `git status` before pushing — if anything from `data/` or `output/`
 2. **Bullet selection + rewriting.** For each item that *was* selected, pick the 2–4 highlights most relevant to the JD and rewrite them to match `ui_guidelines.voice` and the language of the JD.
 
 `narrative` fields exist as background context for the agent only — they should never be copied verbatim into the resume.
+
+## Critical tailoring loop (recruiter reviews)
+
+To stop the agent from being a "yes-sayer" that includes irrelevant entries — or, just as bad, silently **leaves off something valuable** — two skeptical-recruiter reviews bracket generation. The check is symmetric: cut the weak **and** force-include the strong. Both reviews run as the **client's own fresh sub-agents** (e.g. Claude Code's Task tool) with no inherited context — so they're genuinely independent. **The server never calls an LLM**, so there's no API key and no extra cost beyond your normal client/subscription.
+
+1. **Rank (before selecting).** Call `get_relevance_review_prompt(company, job_description)` and run the returned prompt in a fresh sub-agent. A recruiter for that company scores every catalogue entry 0–5 against the job, marks the **must-includes**, and flags the low scorers to cut.
+2. **Generate.** Select and rewrite content using those rankings, then call `generate_resume(name, content)`.
+3. **Critique (after writing).** Call `get_resume_critique_prompt(name, company, job_description)` and run it in a fresh sub-agent. It sees the **full catalogue and the rendered resume**, so it lists valuable entries you **wrongly omitted** (by `id`), the top‑5 missing keywords, and per‑item good/bad.
+4. **Revise.** Add every wrongly-omitted entry, fix the keywords and per-item issues, and call `generate_resume` again. Repeat 3–4 until the **"Wrongly omitted" section comes back empty** and the critique is clean.
+
+The omission check is the safety net that makes it hard to drop something valuable: the post-write critic compares what's on the page against the entire catalogue and names anything strong that's missing, by `id`, so the main agent can add it back deterministically.
+
+The full workflow is also returned by `get_resume_schema()`. In Claude Code, a `PostToolUse` hook (`.claude/settings.json` → `scripts/post_generate_reminder.py`) fires after `generate_resume` to remind the agent to run the critique, so step 3 doesn't get skipped. The persona and prompt wording live in `src/resume_mcp_server/critic.py` if you want to tune how tough the recruiter is.
