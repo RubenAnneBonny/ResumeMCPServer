@@ -13,9 +13,11 @@ from mcp.server.fastmcp import FastMCP
 from resume_mcp_server import paths
 from resume_mcp_server.critic import (
     build_interview_prompt,
+    build_qualification_check_prompt,
     build_relevance_review_prompt,
     build_resume_critique_prompt,
 )
+from resume_mcp_server.jobs import fetch_ad, search_jobs
 from resume_mcp_server.latex import compile_tex, tectonic_available
 from resume_mcp_server.render import render_resume
 from resume_mcp_server.research import research_company_online
@@ -528,6 +530,94 @@ def research_company(
     findings types: "overview", "related", "tech", "webpage", "role_context".
     """
     return research_company_online(company_name, job_description)
+
+
+@mcp.tool()
+def search_platsbanken(
+    query: str,
+    location: str = "",
+    limit: int = 20,
+    offset: int = 0,
+) -> dict[str, Any]:
+    """Search Platsbanken (Arbetsförmedlingen's JobTech JobSearch API) for live ads.
+
+    Use this to DISCOVER jobs that match the candidate. Derive good search inputs
+    from get_personal_info first: build `query` from the candidate's titles and
+    strongest skills, and pass their `contact.location` (and/or "distans"/remote) as
+    `location`. Run more than one query if useful and dedupe by job `id`.
+
+    IMPORTANT: the results are candidates, NOT recommendations. Before you recommend
+    ANY job to the user you MUST run the qualification gate via
+    get_qualification_check_prompt (a PostToolUse hook will remind you). "Qualified"
+    means the candidate meets the job's STATED requirements — not that they are likely
+    to be hired.
+
+    Args:
+        query: freetext search, e.g. "machine learning engineer python".
+        location: place name appended to the freetext, e.g. "Stockholm" or "distans".
+        limit: max ads to return (1-100, default 20).
+        offset: pagination offset (default 0).
+
+    Returns a dict with "query", "total" (matches available), "count" (returned),
+    "jobs" (normalized list with id, headline, employer, location, deadline, url,
+    description, …), and "errors".
+    """
+    return search_jobs(query, location, limit, offset)
+
+
+@mcp.tool()
+def get_job_ad(ad_id: str) -> dict[str, Any]:
+    """Fetch one full Platsbanken ad by id, for an accurate qualification check.
+
+    search_platsbanken truncates long descriptions; call this on a promising hit to
+    get the FULL requirements text plus the ad's structured must_have/nice_to_have
+    blocks before running the qualification gate.
+
+    Args:
+        ad_id: the `id` of a job returned by search_platsbanken.
+
+    Returns the normalized ad (full description + must_have/nice_to_have), or a dict
+    with an "error" key if the fetch failed.
+    """
+    return fetch_ad(ad_id)
+
+
+@mcp.tool()
+def get_qualification_check_prompt(jobs: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build the MANDATORY qualification-gate prompt for a shortlist of jobs.
+
+    Returns a complete, self-contained prompt that embeds the full personal-info
+    catalogue and the given jobs, and asks — requirement by requirement — whether the
+    candidate meets each job's STATED requirements. This is NOT about hire likelihood.
+    Hand the prompt to a FRESH sub-agent (e.g. the Task tool, no inherited context);
+    it returns a per-job verdict (QUALIFIED / NOT QUALIFIED / UNCERTAIN) with the
+    unmet stated requirements named. The server does not call an LLM.
+
+    A job is recommendable to the user ONLY if the sub-agent returns QUALIFIED. Show
+    NOT QUALIFIED jobs separately with their missing stated requirement, and flag
+    UNCERTAIN jobs (unconfirmed hard requirements) for the user to confirm.
+
+    Args:
+        jobs: the candidate jobs to audit — pass the normalized dicts from
+            search_platsbanken / get_job_ad (id, headline, employer, description,
+            and any must_have/nice_to_have blocks).
+
+    Returns a dict with "prompt" (give this verbatim to the sub-agent) and
+    "how_to_use".
+    """
+    _bootstrap_personal_info()
+    personal_info = _read_json(paths.PERSONAL_INFO_PATH)
+    return {
+        "prompt": build_qualification_check_prompt(jobs, personal_info),
+        "how_to_use": (
+            "Launch a fresh sub-agent (e.g. the Task tool, general-purpose, no "
+            "inherited context) with this exact prompt. Recommend ONLY the jobs it "
+            "marks QUALIFIED; list NOT QUALIFIED jobs separately with the missing "
+            "stated requirement (the MISSING_HARD line); surface UNCERTAIN jobs to "
+            "the user with the unconfirmed requirement. Qualified means meeting the "
+            "job's stated requirements, NOT likelihood of being hired."
+        ),
+    }
 
 
 # Run bootstrap eagerly so first call to get_personal_info() works after a

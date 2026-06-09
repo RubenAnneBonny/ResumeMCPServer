@@ -50,6 +50,24 @@ concrete, truthful detail — never invent, inflate, or keep filler. Show the pr
 and save it (via `get_personal_info` → mutate → `update_personal_info`) only after the user
 approves. The interviewer persona lives in `src/resume_mcp_server/critic.py`.
 
+## Job search + mandatory qualification gate
+
+When the user wants to **find** jobs (not tailor to one they already have), use the
+`/find-jobs` skill. It searches Platsbanken via the JobTech JobSearch API
+(`search_platsbanken`, `get_job_ad`).
+
+**Hard rule: never recommend a job before the qualification gate passes.** The retrieved
+ads are candidates, not recommendations. Before surfacing ANY job you MUST call
+`get_qualification_check_prompt(jobs)` and run it in a **fresh sub-agent** (Task tool, no
+inherited context) — like the recruiter reviews. A `PostToolUse` hook on
+`search_platsbanken` also reminds you. **"Qualified" means the candidate meets the job's
+STATED requirements — NOT that they are likely to be hired, beat other applicants, or
+interview well.** A job is `NOT QUALIFIED` only when a *hard/must-have* requirement is
+unmet; missing merits never disqualify; `UNCERTAIN` means the catalogue can't confirm a
+hard requirement. Present results in three groups (qualified / not qualified with the
+missing requirement named / uncertain). The auditor persona lives in
+`src/resume_mcp_server/critic.py`.
+
 ## Privacy
 
 `data/personal_info.json` and `output/` hold real personal data and are gitignored. Run

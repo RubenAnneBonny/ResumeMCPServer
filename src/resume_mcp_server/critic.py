@@ -55,6 +55,89 @@ INTERVIEWER_PERSONA = (
 )
 
 
+# Requirements auditor used to gate job recommendations. This persona is NOT a
+# recruiter guessing hire odds — it answers one narrow factual question: does the
+# candidate meet the job's STATED requirements, per the catalogue evidence? Run as a
+# fresh sub-agent (no inherited context), like the recruiter reviews.
+QUALIFICATION_SCREENER_PERSONA = (
+    "You are a strict but fair requirements auditor. For each job below you answer "
+    "ONE narrow factual question: does the candidate demonstrably meet the job's "
+    "STATED requirements? This is NOT about whether they would get hired, beat other "
+    "applicants, interview well, or be a good culture fit — only whether the stated "
+    "requirements are met by the evidence in the candidate catalogue. You never invent "
+    "evidence and never credit a requirement the catalogue does not actually support; "
+    "when the catalogue is silent on a requirement, you say so rather than guessing."
+)
+
+
+def build_qualification_check_prompt(
+    jobs: list[dict[str, Any]],
+    personal_info: dict[str, Any],
+) -> str:
+    """Prompt for the job-qualification gate (runs BEFORE any recommendation).
+
+    Embeds the full catalogue once plus the shortlist of jobs, and asks a fresh
+    sub-agent to decide, requirement by requirement, whether the candidate meets each
+    job's STATED requirements. A job is only ``QUALIFIED`` when every hard/must-have
+    requirement is met; missing merits never disqualify. Output is a strict,
+    parseable per-job block the main agent acts on deterministically.
+    """
+    catalogue = json.dumps(personal_info, indent=2, ensure_ascii=False)
+    jobs_json = json.dumps(jobs, indent=2, ensure_ascii=False)
+    return f"""{QUALIFICATION_SCREENER_PERSONA}
+
+# The candidate catalogue (everything known to be true about this candidate)
+Each item has a stable `id`. `narrative` fields are background context. Treat this as
+the ONLY evidence about the candidate — if a requirement isn't supported here, it is
+not established.
+
+```json
+{catalogue}
+```
+
+# The jobs to audit
+Each job has an `id`, `headline`, `employer`, and the requirements text (in
+`description`, and where present the structured `must_have`/`nice_to_have` blocks).
+
+```json
+{jobs_json}
+```
+
+# Your task — for EACH job
+1. Read the requirements and split them into **hard/must-have** (explicitly required:
+   a degree, a number of years, a specific language/skill/certification, work
+   authorization, etc.) versus **merit/nice-to-have** (wished-for, "meriterande",
+   "plus", "bonus").
+2. For each requirement, judge it against the catalogue and mark it:
+   - `MET` — catalogue clearly supports it (cite the entry `id` or fact).
+   - `PARTIAL` — partially supported (say what's missing).
+   - `NOT MET` — catalogue contradicts it or clearly lacks it.
+   - `UNKNOWN` — the catalogue is simply silent; do NOT guess.
+3. Verdict for the job:
+   - `QUALIFIED` — every HARD requirement is `MET` (or `PARTIAL` where partial clearly
+     suffices). Missing merits do NOT disqualify.
+   - `NOT QUALIFIED` — at least one HARD requirement is `NOT MET`.
+   - `UNCERTAIN` — no hard requirement is `NOT MET`, but at least one HARD requirement
+     is `UNKNOWN` (the candidate may well qualify, but the catalogue can't confirm it).
+
+Remember: qualified = meets the stated requirements, NOT likelihood of being hired.
+
+# Output format (return EXACTLY this, one block per job, nothing else)
+```
+## <job id> — <headline> @ <employer>
+VERDICT: QUALIFIED | NOT QUALIFIED | UNCERTAIN
+
+| requirement | hard? | status | evidence / what's missing |
+|-------------|-------|--------|---------------------------|
+| <requirement> | yes/no | MET/PARTIAL/NOT MET/UNKNOWN | <one line> |
+
+MISSING_HARD: <comma-separated stated requirements that are NOT MET; "none" if none>
+UNKNOWN_HARD: <comma-separated hard requirements that are UNKNOWN; "none" if none>
+```
+
+Be decisive and concrete. Cite catalogue evidence by `id` wherever you can."""
+
+
 def build_relevance_review_prompt(
     company: str,
     job_description: str,

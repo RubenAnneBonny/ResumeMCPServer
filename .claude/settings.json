@@ -18,6 +18,15 @@
             "command": "python \"$CLAUDE_PROJECT_DIR/scripts/post_interview_reminder.py\""
           }
         ]
+      },
+      {
+        "matcher": "mcp__resume__search_platsbanken",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/scripts/post_search_qualification_reminder.py\""
+          }
+        ]
       }
     ]
   }
