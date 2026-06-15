@@ -1,6 +1,12 @@
 # --- Privacy: real personal data must never be committed ---
 data/personal_info.json
+data/ui_guidelines.json
+data/backups/
 output/
+Temp/
+
+# --- Local Claude Code config (machine-specific paths/permissions) ---
+.claude/settings.local.json
 
 # --- Python ---
 .venv/

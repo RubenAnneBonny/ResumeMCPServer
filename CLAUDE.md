@@ -14,19 +14,27 @@ keeps them independent and bills only to the user's normal subscription.
 The check is symmetric — **cut weak entries AND force-include strong ones that were
 missed**. Never silently drop something valuable.
 
+0. **Research the company yourself** with the `WebSearch`/`WebFetch` tools — mission,
+   domain, and what it values for this role. For a small or obscure employer, fetch its own
+   site and read the ad closely. Use the themes to steer the summary and which highlights
+   you emphasise. (The server no longer ships a research tool; you do this natively.)
 1. **Rank first.** Call `get_relevance_review_prompt(company, job_description)` and run
    the returned `prompt` in a fresh Task sub-agent. Use its 0–5 scores and `MUST_INCLUDE`
    line: include the must-haves, cut the low scorers.
-2. **Select + generate.** Pick and rewrite content (2–4 highlights per item, match
-   `ui_guidelines.voice`), then call `generate_resume(name, content)`.
+2. **Select + generate.** Pick and rewrite content (2–4 highlights per item) following
+   `ui_guidelines.voice`: **no personal pronouns, past tense, strong action verbs, and
+   never em-dashes (—)** — use commas, colons, or parentheses (a `PreToolUse` hook blocks
+   `generate_resume` if em-dashes slip in). Then call `generate_resume(name, content)`.
 3. **Critique after writing.** Call `get_resume_critique_prompt(name, company,
    job_description)` and run it in a fresh Task sub-agent. It sees the full catalogue and
-   the rendered resume, so it reports any valuable entries you **wrongly omitted** (by id),
-   missing keywords, per-item feedback, and a **"Worth interviewing the candidate about"**
-   list of gaps that matter for this job. A `PostToolUse` hook also reminds you.
-4. **Revise.** ADD every wrongly-omitted entry it flags, fix the keywords and per-item
-   issues, call `generate_resume` again, and repeat 3–4 until the **"Wrongly omitted"
-   section is empty** and the critique is clean.
+   the rendered resume, so it reports **unsupported claims** (anything the catalogue can't
+   back), valuable entries you **wrongly omitted** (by id), filler to **cut/trim**, what's
+   working, truthful missing keywords, per-item feedback, and a **"Worth interviewing the
+   candidate about"** list. Two `PostToolUse` hooks also remind you (critique + guidelines).
+4. **Revise.** REMOVE/rephrase every unsupported claim, ADD every wrongly-omitted entry,
+   CUT the flagged filler, fix the keywords and per-item issues, call `generate_resume`
+   again, and repeat 3–4 until **"Unsupported claims" and "Wrongly omitted" are both empty**
+   and **"Cut or trim" is clean**.
 5. **Targeted interview (optional, per critique).** For each item the critique flags under
    "Worth interviewing the candidate about", you MAY call `get_interview_prompt(section,
    target_id, company, job_description, focus=<the gap>)` and run that narrow interview
@@ -70,5 +78,8 @@ missing requirement named / uncertain). The auditor persona lives in
 
 ## Privacy
 
-`data/personal_info.json` and `output/` hold real personal data and are gitignored. Run
-`git status` before committing; if anything from `data/` or `output/` appears, stop.
+`data/personal_info.json`, `data/ui_guidelines.json`, and `output/` hold real personal
+data and are gitignored. Each `data/*.json` is seeded on first run from its committed
+`*.example.json` counterpart (see `_bootstrap_personal_info` / `_bootstrap_ui_guidelines`
+in `server.py`), so edits to the live files stay local. Run `git status` before committing;
+if anything from `data/` (other than the `*.example.json` files) or `output/` appears, stop.

@@ -17,6 +17,11 @@ _LATEX_ESCAPES: list[tuple[str, str]] = [
     ("}", r"\}"),
     ("~", r"\textasciitilde{}"),
     ("^", r"\textasciicircum{}"),
+    # Unicode dashes crash Tectonic (no glyph in the cmr/cfr-lm fonts). Convert
+    # them to their LaTeX equivalents as a safety net — the agent is also told
+    # (via the pre-generate hook) to avoid em-dashes in the first place.
+    ("—", "---"),  # em dash —
+    ("–", "--"),   # en dash –
 ]
 
 

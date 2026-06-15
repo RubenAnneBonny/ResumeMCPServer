@@ -103,7 +103,6 @@ class UIGuidelines(_Lax):
     section_heading: dict[str, Any] = Field(default_factory=dict)
     spacing: dict[str, Any] = Field(default_factory=dict)
     header: dict[str, Any] = Field(default_factory=dict)
-    date_format: str = "MMM YYYY"
     bullet_style: str = "•"
     voice: dict[str, Any] = Field(default_factory=dict)
 

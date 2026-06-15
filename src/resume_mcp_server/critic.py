@@ -219,9 +219,11 @@ def build_resume_critique_prompt(
     """Prompt for the POST-generation critique.
 
     Embeds BOTH the rendered LaTeX and the full personal-info catalogue, so the
-    recruiter sub-agent can do two things the resume alone can't support:
-    (1) flag valuable catalogue entries that were wrongly OMITTED from the
-    resume, by `id`, and (2) critique what is on the page. Output is a strict,
+    recruiter sub-agent can do things the resume alone can't support: (1) flag
+    UNSUPPORTED claims by checking every resume line against the catalogue
+    (honesty gate), (2) flag valuable catalogue entries that were wrongly
+    OMITTED, by `id`, (3) name what to CUT/trim so the resume stays tight and
+    one page, and (4) note what is genuinely working. Output is a strict,
     parseable shape the main agent can act on deterministically.
     """
     catalogue = json.dumps(personal_info, indent=2, ensure_ascii=False)
@@ -249,42 +251,66 @@ Read it the way it would appear on the page; ignore LaTeX formatting commands.
 
 # Your task
 Critique this resume AS THE RECRUITER for the job above. Be specific and
-actionable — every point should change something concrete. The single most
-important thing you do here is catch VALUABLE MATERIAL THAT WAS LEFT OFF.
+actionable — every point should change something concrete. Your judgement is
+symmetric: catch valuable material that was wrongly LEFT OFF, AND cut the weak,
+generic, or off-target material that is on the page wasting space. A tight,
+honest, one-page resume beats a padded one.
 
-1. **Wrongly omitted entries (do this first, most important).** Compare the
-   resume against the FULL catalogue above. List every catalogue item (by `id`
-   and name) that is relevant to THIS job but does NOT appear on the resume.
-   For each, give a 0–5 relevance score and one line on why it belongs. Err
-   hard on the side of flagging — it is far worse to silently drop a strong
-   entry than to over-suggest. Only leave this section empty if nothing of
-   value was omitted.
-2. **Top 5 missing keywords / skills.** Things the job description clearly wants
-   that this resume does not surface (or buries). Order by importance.
-3. **Per included item.** For each experience, project, competition, and
-   education entry actually shown on the resume, give one line of what is GOOD
-   (why it earns its place) and one line of what is WEAK or should change
-   (vague bullet, missing metric, wrong emphasis, etc.).
-4. **Worth interviewing the candidate about.** List entries (on the resume OR in
+1. **Unsupported claims (DO THIS FIRST — honesty gate).** Read every line on the
+   resume against the FULL catalogue. Flag anything the catalogue does NOT
+   support: invented or inflated numbers, scope the candidate didn't actually
+   own, skills/tools with no backing entry, or keyword padding. The candidate
+   must never submit a claim they can't defend. Quote the line and name what's
+   wrong. "none" ONLY if every claim is fully supported by the catalogue.
+2. **Wrongly omitted entries.** Compare the resume against the FULL catalogue.
+   List every catalogue item (by `id` and name) relevant to THIS job that does
+   NOT appear on the resume. For each, give a 0–5 relevance score and one line
+   on why it belongs. Err toward flagging — silently dropping a strong entry is
+   worse than over-suggesting. "none" only if nothing valuable was left off.
+3. **Cut or trim (make room / tighten).** Name the specific items AND individual
+   bullets already on the resume that are NOT pulling their weight for THIS job:
+   generic filler, redundant with a stronger bullet, off-target for this role,
+   or vague with no concrete detail. Say exactly what to delete or compress.
+   This is how the resume stays one page and stays sharp. "none" only if every
+   line genuinely earns its place.
+4. **What's working (keep).** Briefly name the bullets/items that are genuinely
+   strong for this job, so revisions don't accidentally remove them.
+5. **Top 5 missing keywords / skills.** Things the job clearly wants that the
+   resume doesn't surface (or buries), ordered by importance. ONLY list keywords
+   the catalogue can truthfully support — never suggest padding with a skill the
+   candidate can't back up (that would contradict section 1).
+6. **Worth interviewing the candidate about.** List entries (on the resume OR in
    the catalogue) where a quick answer FROM THE CANDIDATE could materially
    strengthen this resume for THIS job — an unclear scope, a missing metric, an
    ambiguity that matters here (e.g. the role is team-heavy but a project never
    says whether it was solo or collaborative). For each, give the `id`, the
    specific question to ask, and why the answer would change the resume. Only
    list gaps a short interview could actually close; "none" if there are none.
-5. **Prioritized fixes.** A short ordered list (max 5) of the highest-impact
-   edits the candidate should make before submitting — include both additions
-   (omitted entries) and rewrites.
+7. **Prioritized fixes.** A short ordered list (max 5) of the highest-impact
+   edits before submitting — mix additions (omitted entries), cuts (filler), and
+   honesty fixes as warranted.
 
 # Output format (return EXACTLY this, nothing else)
 ```
-## Wrongly omitted (FIX FIRST)
+## Unsupported claims (FIX FIRST)
+- "<quoted resume line>" — <what is unsupported / inflated and how to fix>
+... ("none" only if every claim is fully backed by the catalogue)
+
+## Wrongly omitted
 - <id> (<name>) — score <0-5> — <why it belongs on this resume>
 ... (every relevant omitted catalogue item; "none" only if truly nothing valuable was left off)
 
+## Cut or trim
+- <item name or "quoted bullet"> — <delete / compress, and why it isn't earning its place>
+... ("none" only if nothing on the page is weak or redundant)
+
+## What's working (keep)
+- <item name or "quoted bullet"> — <why it's strong for this job>
+... (the genuinely strong lines)
+
 ## Missing keywords
 1. <keyword> — <why it matters for this job>
-... (up to 5)
+... (up to 5, truthfully supportable only)
 
 ## Per-item feedback
 ### <item name>
@@ -297,12 +323,13 @@ important thing you do here is catch VALUABLE MATERIAL THAT WAS LEFT OFF.
 ... ("none" if no live question would change the resume)
 
 ## Prioritized fixes
-1. <highest-impact edit, additions first>
+1. <highest-impact edit>
 ... (up to 5)
 ```
 
-Do not pad. If a bullet is genuinely strong, say so briefly; if it is filler,
-say to cut it."""
+Do not pad your own critique. If a bullet is genuinely strong, say so briefly;
+if it is filler, say to cut it; if it is unsupported, say to remove or rephrase
+it. Honesty and tightness matter as much as completeness."""
 
 
 def build_interview_prompt(

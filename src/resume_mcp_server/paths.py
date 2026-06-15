@@ -20,6 +20,7 @@ OUTPUT_DIR: Path = REPO_ROOT / "output"
 PERSONAL_INFO_PATH: Path = DATA_DIR / "personal_info.json"
 PERSONAL_INFO_EXAMPLE_PATH: Path = DATA_DIR / "personal_info.example.json"
 UI_GUIDELINES_PATH: Path = DATA_DIR / "ui_guidelines.json"
+UI_GUIDELINES_EXAMPLE_PATH: Path = DATA_DIR / "ui_guidelines.example.json"
 RESUME_TEMPLATE_PATH: Path = TEMPLATES_DIR / "resume.tex.j2"
 
 

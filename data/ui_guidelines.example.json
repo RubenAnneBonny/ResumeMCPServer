@@ -39,10 +39,10 @@
     "name_size": "Large",
     "name_weight": "bold"
   },
-  "date_format": "YYYY",
   "bullet_style": "tiny-bullet",
   "voice": {
-    "person": "third",
-    "tense": "past_for_past_jobs"
+    "person": "implied_first_no_pronoun",
+    "tense": "past",
+    "notes": "No personal pronouns (no 'I'/'my'/'he'/'she'). Past tense. Lead each bullet with a strong action verb. Do not use em-dashes (—); use commas, colons, or parentheses instead."
   }
 }

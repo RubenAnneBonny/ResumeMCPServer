@@ -20,7 +20,6 @@ from resume_mcp_server.critic import (
 from resume_mcp_server.jobs import fetch_ad, search_jobs
 from resume_mcp_server.latex import compile_tex, tectonic_available
 from resume_mcp_server.render import render_resume
-from resume_mcp_server.research import research_company_online
 from resume_mcp_server.schemas import (
     Certification,
     Competition,
@@ -55,6 +54,14 @@ def _bootstrap_personal_info() -> None:
         return
     if paths.PERSONAL_INFO_EXAMPLE_PATH.exists():
         shutil.copy2(paths.PERSONAL_INFO_EXAMPLE_PATH, paths.PERSONAL_INFO_PATH)
+
+
+def _bootstrap_ui_guidelines() -> None:
+    paths.ensure_dirs()
+    if paths.UI_GUIDELINES_PATH.exists():
+        return
+    if paths.UI_GUIDELINES_EXAMPLE_PATH.exists():
+        shutil.copy2(paths.UI_GUIDELINES_EXAMPLE_PATH, paths.UI_GUIDELINES_PATH)
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -98,6 +105,7 @@ def get_ui_guidelines() -> dict[str, Any]:
     section heading style, spacing, voice (person/tense). Pass these into
     generate_resume so the rendered PDF matches the configured style.
     """
+    _bootstrap_ui_guidelines()
     return _read_json(paths.UI_GUIDELINES_PATH)
 
 
@@ -147,30 +155,36 @@ def get_resume_schema() -> dict[str, Any]:
         "MANDATORY critical tailoring loop — do NOT skip the recruiter reviews. "
         "They exist so the resume is sharpened by an adversarial recruiter, not "
         "just rubber-stamped:\n"
-        "0) RANK (before selecting): call get_relevance_review_prompt(company, "
+        "0) RESEARCH the company yourself with the WebSearch/WebFetch tools: its "
+        "mission, domain, and what it values in this role. For a small or obscure "
+        "employer, fetch its own site and read the job ad closely. Use the themes "
+        "to steer the summary and which highlights you emphasise.\n"
+        "1) RANK (before selecting): call get_relevance_review_prompt(company, "
         "job_description) and run the returned prompt in a FRESH sub-agent (e.g. "
         "the Task tool, no inherited context). It scores every catalogue entry "
         "0-5 for this job. Cut the low-scoring ones.\n"
-        "1) Read get_personal_info() in full. It is the catalogue, not the resume.\n"
-        "2) Using the rankings, pick the items most relevant to the JD per section "
+        "2) Read get_personal_info() in full. It is the catalogue, not the resume.\n"
+        "3) Using the rankings, pick the items most relevant to the JD per section "
         "(experience, education, projects, competitions, certifications). The agent "
         "decides counts — typical output is e.g. 2 of 3 jobs, 4 of 4 education "
         "entries, 5 of 8 projects, 4 of 6 competitions.\n"
-        "3) For each selected item, pick the 2-4 highlights most relevant to the "
-        "JD and rewrite them tightly. Match tone to ui_guidelines.voice "
-        "(person + tense).\n"
-        "4) `narrative` fields in personal_info are background context for you. "
+        "4) For each selected item, pick the 2-4 highlights most relevant to the "
+        "JD and rewrite them tightly. Obey ui_guidelines.voice: no personal "
+        "pronouns, past tense, lead with a strong action verb, and NEVER use "
+        "em-dashes (—) — use commas, colons, or parentheses instead.\n"
+        "5) `narrative` fields in personal_info are background context for you. "
         "They must never be copied verbatim into the resume.\n"
-        "5) Pass the curated, rewritten dict to generate_resume(name, content). "
+        "6) Pass the curated, rewritten dict to generate_resume(name, content). "
         "The server merges it with current ui_guidelines and renders LaTeX.\n"
-        "6) CRITIQUE (after generating): call get_resume_critique_prompt(name, "
+        "7) CRITIQUE (after generating): call get_resume_critique_prompt(name, "
         "company, job_description) and run it in a FRESH sub-agent. It sees the "
-        "full catalogue AND the rendered resume, so it flags valuable entries you "
-        "wrongly OMITTED (by id) plus the top-5 missing keywords and per-item "
-        "good/bad feedback.\n"
-        "7) REVISE: ADD every wrongly-omitted entry it flags, fix the keywords and "
-        "per-item issues, and call generate_resume again. Repeat 6-7 until the "
-        "'Wrongly omitted' section comes back empty and the critique is clean."
+        "full catalogue AND the rendered resume, so it flags UNSUPPORTED claims, "
+        "valuable entries you wrongly OMITTED (by id), filler to CUT, what is "
+        "working, the top-5 truthful missing keywords, and per-item feedback.\n"
+        "8) REVISE: remove/rephrase every unsupported claim, ADD every wrongly- "
+        "omitted entry, CUT the flagged filler, fix the keywords and per-item "
+        "issues, and call generate_resume again. Repeat 7-8 until 'Unsupported "
+        "claims' and 'Wrongly omitted' are both empty and 'Cut or trim' is clean."
     )
     return {"schema": schema, "guidance": guidance}
 
@@ -224,7 +238,7 @@ def _safe_name(name: str) -> str:
 def generate_resume(
     name: str,
     content: dict[str, Any],
-    compile: bool = True,
+    compile_pdf: bool = True,
 ) -> dict[str, Any]:
     """Render a tailored resume to LaTeX and (by default) compile to PDF.
 
@@ -233,15 +247,16 @@ def generate_resume(
             [A-Za-z0-9_-]+.
         content: the curated structured dict — same shape as personal_info,
             but trimmed and rewritten for the target JD. See get_resume_schema.
-        compile: if True (default), runs Tectonic to produce a PDF. If False,
-            only the .tex file is written, useful for iterating on content
-            without paying the compile cost.
+        compile_pdf: if True (default), runs Tectonic to produce a PDF. If
+            False, only the .tex file is written, useful for iterating on
+            content without paying the compile cost.
 
     Returns paths to the generated .tex and .pdf (when compiled), plus any
     Tectonic stdout/stderr/log path on failure.
     """
     safe = _safe_name(name)
     paths.ensure_dirs()
+    _bootstrap_ui_guidelines()
     ui = _read_json(paths.UI_GUIDELINES_PATH)
 
     tex_source = render_resume("resume.tex.j2", content, ui)
@@ -254,7 +269,7 @@ def generate_resume(
         "compiled": False,
     }
 
-    if not compile:
+    if not compile_pdf:
         return result
 
     cr = compile_tex(tex_path)
@@ -405,9 +420,12 @@ def get_resume_critique_prompt(
         "how_to_use": (
             "Launch a fresh sub-agent (e.g. the Task tool, general-purpose, no "
             "inherited context) with this exact prompt. Apply its results to your "
-            "content — ADD every wrongly-omitted entry it flags, then fix the "
-            "missing keywords and per-item issues — and call generate_resume "
-            "again. Repeat until the 'Wrongly omitted' section comes back empty."
+            "content: REMOVE/rephrase every UNSUPPORTED claim it flags, ADD every "
+            "wrongly-omitted entry, CUT the filler it lists under 'Cut or trim', "
+            "keep what it marks as working, then fix the missing keywords and "
+            "per-item issues and call generate_resume again. Repeat until the "
+            "'Unsupported claims' and 'Wrongly omitted' sections both come back "
+            "empty and nothing remains under 'Cut or trim'."
         ),
     }
 
@@ -456,6 +474,7 @@ def get_interview_prompt(
     "how_to_use".
     """
     _bootstrap_personal_info()
+    _bootstrap_ui_guidelines()
     personal_info = _read_json(paths.PERSONAL_INFO_PATH)
     ui = _read_json(paths.UI_GUIDELINES_PATH)
 
@@ -505,31 +524,6 @@ def get_interview_prompt(
             "on the current resume only if it helps that job."
         ),
     }
-
-
-@mcp.tool()
-def research_company(
-    company_name: str,
-    job_description: str = "",
-) -> dict[str, Any]:
-    """Research a company online to gather context for resume tailoring.
-
-    Queries DuckDuckGo and fetches the company's own pages to collect
-    information about mission, culture, tech stack, and domain focus.
-    Returns structured findings for use when writing the resume summary
-    and selecting/rewriting highlights to match what the company values.
-
-    Args:
-        company_name: name of the company to research, e.g. "Citadel Securities".
-        job_description: optional job description text; used to run an
-            additional domain-specific search (e.g. role keywords refine
-            what to look for).
-
-    Returns a dict with keys: company_name, findings (list of {type, source,
-    text}), sources (list of URLs), errors (list of any fetch failures).
-    findings types: "overview", "related", "tech", "webpage", "role_context".
-    """
-    return research_company_online(company_name, job_description)
 
 
 @mcp.tool()
@@ -620,6 +614,8 @@ def get_qualification_check_prompt(jobs: list[dict[str, Any]]) -> dict[str, Any]
     }
 
 
-# Run bootstrap eagerly so first call to get_personal_info() works after a
-# fresh clone. Cheap (one stat + maybe one copy) and idempotent.
+# Run bootstrap eagerly so the first tool call works after a fresh clone. Cheap
+# (a couple stats + maybe a copy) and idempotent. Both data files are gitignored
+# and seeded from their committed *.example.json counterparts.
 _bootstrap_personal_info()
+_bootstrap_ui_guidelines()
