@@ -31,6 +31,9 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+# E501 (line length) is noisy on prose-heavy prompt templates and test data;
+# the rules that catch real bugs (F, I, UP, B) stay on.
+ignore = ["E501"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/resume_mcp_server"]

@@ -14,8 +14,7 @@ Two helpers:
   the qualification step for accuracy.
 
 Network calls are wrapped so the tools degrade gracefully (errors collected, never
-raised) the way ``research.py`` does, since the MCP client should not hard-fail on a
-transient network problem.
+raised), since the MCP client should not hard-fail on a transient network problem.
 """
 
 from __future__ import annotations

@@ -29,7 +29,7 @@ def job_key(company: str, job_description: str) -> str:
     case-insensitive so trivial reformatting doesn't invalidate a review."""
     norm_company = " ".join(company.split()).lower()
     norm_jd = " ".join(job_description.split()).lower()
-    digest = hashlib.sha256(f"{norm_company}\x00{norm_jd}".encode("utf-8"))
+    digest = hashlib.sha256(f"{norm_company}\x00{norm_jd}".encode())
     return digest.hexdigest()[:16]
 
 

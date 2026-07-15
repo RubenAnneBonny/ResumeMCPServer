@@ -89,8 +89,8 @@ def page_check(pdf_path: Path, max_pages: int) -> dict[str, Any]:
         result["message"] = (
             f"Resume is {pages} pages but the limit is {max_pages}. Fix by "
             "CUTTING the lowest-relevance included entry or trimming highlights "
-            "(consult the relevance review), NOT by shrinking margins/font — "
-            "recruiters notice that."
+            "(consult the relevance review), NOT by shrinking margins/font "
+            "(recruiters notice that)."
         )
     return result
 

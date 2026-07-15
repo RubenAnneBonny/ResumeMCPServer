@@ -10,7 +10,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from resume_mcp_server import checks, paths
+from resume_mcp_server import checks, paths, state
 from resume_mcp_server.critic import (
     build_interview_prompt,
     build_proofread_prompt,
@@ -20,7 +20,6 @@ from resume_mcp_server.critic import (
     build_resume_critique_prompt,
     build_skim_prompt,
 )
-from resume_mcp_server import state
 from resume_mcp_server.jobs import fetch_ad, search_jobs
 from resume_mcp_server.latex import compile_tex, tectonic_available
 from resume_mcp_server.render import render_resume
@@ -31,7 +30,6 @@ from resume_mcp_server.schemas import (
     Experience,
     PersonalInfo,
     Project,
-    UIGuidelines,
     validate_personal_info,
     validate_ui_guidelines,
 )
@@ -401,7 +399,7 @@ def patch_entry(
             "Use get_personal_info or get_catalogue_index to see valid ids."
         )
     items[idx] = {**items[idx], **changes}
-    validated = _write_personal_info(pi)
+    _write_personal_info(pi)
     return {"section": section, "patched": items[idx]}
 
 
