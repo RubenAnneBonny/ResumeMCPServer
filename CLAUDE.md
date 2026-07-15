@@ -64,8 +64,10 @@ or call `get_interview_prompt(section, target_id="" for new / id for refine)`. T
 recruiter reviews, you run it **interactively in the main conversation** (a sub-agent can't
 ask the user anything). Apply the **omit principle**: drop any thread that doesn't yield
 concrete, truthful detail — never invent, inflate, or keep filler. Show the proposed entry
-and save it (via `get_personal_info` → mutate → `update_personal_info`) only after the user
-approves. The interviewer persona lives in `src/resume_mcp_server/critic.py`.
+and save it only after the user approves, using the granular tools: `add_entry(section,
+item)` to create (an id is derived if omitted) or `patch_entry(section, id, changes)` /
+`delete_entry(section, id)` to refine. Prefer these over the whole-file `update_personal_info`.
+The interviewer persona lives in `src/resume_mcp_server/critic.py`.
 
 ## Job search + mandatory qualification gate
 

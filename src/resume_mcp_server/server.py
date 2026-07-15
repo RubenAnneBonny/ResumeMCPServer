@@ -203,6 +203,137 @@ def update_ui_guidelines(content: dict[str, Any]) -> dict[str, Any]:
     return validated
 
 
+def _get_list_section(personal_info: dict[str, Any], section: str) -> list[Any]:
+    items = personal_info.get(section)
+    if items is None:
+        return []
+    if not isinstance(items, list):
+        raise ValueError(
+            f"section {section!r} is not a list section. Catalogue list sections "
+            f"are: {', '.join(_list_sections(personal_info)) or '(none yet)'}."
+        )
+    return items
+
+
+def _find_entry_index(items: list[Any], entry_id: str) -> int:
+    for i, it in enumerate(items):
+        if isinstance(it, dict) and it.get("id") == entry_id:
+            return i
+    return -1
+
+
+def _derive_id(section: str, item: dict[str, Any], existing: list[Any]) -> str:
+    basis = (
+        item.get("name")
+        or item.get("title")
+        or item.get("degree")
+        or section
+    )
+    slug = re.sub(r"[^a-z0-9]+", "-", str(basis).lower()).strip("-")[:40] or section
+    existing_ids = {
+        it.get("id") for it in existing if isinstance(it, dict) and it.get("id")
+    }
+    candidate, n = slug, 2
+    while candidate in existing_ids:
+        candidate, n = f"{slug}-{n}", n + 1
+    return candidate
+
+
+def _write_personal_info(personal_info: dict[str, Any]) -> dict[str, Any]:
+    validated = validate_personal_info(personal_info)
+    _backup_json(paths.PERSONAL_INFO_PATH)
+    _atomic_write_json(paths.PERSONAL_INFO_PATH, validated)
+    return validated
+
+
+@mcp.tool()
+def add_entry(section: str, item: dict[str, Any]) -> dict[str, Any]:
+    """Append ONE entry to a catalogue list section (small, auditable write).
+
+    Preferred over update_personal_info for adding content: it touches only the
+    one entry, so no other entry can be dropped by mistake. The whole catalogue
+    is re-validated, backed up to data/backups/, and written atomically.
+
+    If `item` has no "id", one is derived from its name/title/degree so you can
+    patch_entry / delete_entry it later.
+
+    Args:
+        section: list section, e.g. "experience", "projects", "competitions".
+        item: the entry dict (shape mirrors its section; see get_resume_schema).
+    """
+    _bootstrap_personal_info()
+    pi = _read_json(paths.PERSONAL_INFO_PATH)
+    items = list(_get_list_section(pi, section))
+    if isinstance(item, dict) and not item.get("id"):
+        item = {**item, "id": _derive_id(section, item, items)}
+    items.append(item)
+    pi[section] = items
+    validated = _write_personal_info(pi)
+    return {
+        "section": section,
+        "added": item,
+        "count": len(validated.get(section, [])),
+    }
+
+
+@mcp.tool()
+def patch_entry(
+    section: str, entry_id: str, changes: dict[str, Any]
+) -> dict[str, Any]:
+    """Shallow-merge `changes` into ONE existing entry, found by its "id".
+
+    Only the named keys are updated; everything else on the entry is preserved.
+    The catalogue is re-validated, backed up, and written atomically.
+
+    Args:
+        section: the list section the entry lives in, e.g. "projects".
+        entry_id: the entry's "id".
+        changes: keys to overwrite, e.g. {"title": "New title"}.
+    """
+    _bootstrap_personal_info()
+    pi = _read_json(paths.PERSONAL_INFO_PATH)
+    items = _get_list_section(pi, section)
+    idx = _find_entry_index(items, entry_id)
+    if idx < 0:
+        raise ValueError(
+            f"no entry with id={entry_id!r} in section {section!r}. "
+            "Use get_personal_info or get_catalogue_index to see valid ids."
+        )
+    items[idx] = {**items[idx], **changes}
+    validated = _write_personal_info(pi)
+    return {"section": section, "patched": items[idx]}
+
+
+@mcp.tool()
+def delete_entry(section: str, entry_id: str) -> dict[str, Any]:
+    """Remove ONE entry, found by its "id", from a catalogue list section.
+
+    Explicit single-entry delete: it backs up to data/backups/ first and writes
+    atomically. (Unlike update_personal_info, it is not subject to the >30%
+    destructive-write guard, because deleting exactly one entry is the intent.)
+
+    Args:
+        section: the list section, e.g. "competitions".
+        entry_id: the "id" of the entry to remove.
+    """
+    _bootstrap_personal_info()
+    pi = _read_json(paths.PERSONAL_INFO_PATH)
+    items = _get_list_section(pi, section)
+    idx = _find_entry_index(items, entry_id)
+    if idx < 0:
+        raise ValueError(
+            f"no entry with id={entry_id!r} in section {section!r}. "
+            "Use get_personal_info or get_catalogue_index to see valid ids."
+        )
+    removed = items.pop(idx)
+    validated = _write_personal_info(pi)
+    return {
+        "section": section,
+        "deleted": removed,
+        "count": len(validated.get(section, [])),
+    }
+
+
 @mcp.tool()
 def get_resume_schema() -> dict[str, Any]:
     """Return the expected shape of the `content` argument for generate_resume.

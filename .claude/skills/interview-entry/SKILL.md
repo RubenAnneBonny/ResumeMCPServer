@@ -40,10 +40,14 @@ it has to ask the user questions.
    context only — never resume copy, plus any other fields). Present it as JSON and **wait
    for the user's OK**.
 
-5. **Save on approval.** Call `mcp__resume__get_personal_info`, then in the right `section`
-   either replace the entry with the matching `id` (refine) or append the new entry with a
-   fresh kebab-case `id` (create). Pass the whole mutated catalogue to
-   `mcp__resume__update_personal_info`. Confirm what was saved.
+5. **Save on approval.** Use the granular tools (small, auditable writes — each backs up
+   the catalogue to `data/backups/` first):
+   - **Create:** `mcp__resume__add_entry(section, item)` — an `id` is derived if you omit one.
+   - **Refine:** `mcp__resume__patch_entry(section, entry_id, changes)` to update only the
+     changed keys, or `mcp__resume__delete_entry(section, entry_id)` to remove one.
+
+   Avoid `update_personal_info` for single-entry edits (it is a whole-file write). Confirm
+   what was saved.
 
 ## Targeted use during job tailoring
 
