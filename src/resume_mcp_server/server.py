@@ -78,9 +78,63 @@ def _atomic_write_json(path: Path, content: dict[str, Any]) -> None:
     os.replace(tmp, path)
 
 
+# Fraction of existing entries a single write may drop before it is refused
+# without force=True. Guards against a confused agent wiping the catalogue.
+_MAX_ENTRY_LOSS_FRACTION = 0.30
+
+
+def _backup_json(path: Path) -> Path | None:
+    """Copy `path` to data/backups/<stem>.<timestamp>.json before it is
+    overwritten. Returns the backup path, or None if there was nothing to copy.
+    """
+    if not path.exists():
+        return None
+    backups_dir = path.parent / "backups"
+    backups_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S_%fZ")
+    dest = backups_dir / f"{path.stem}.{ts}.json"
+    shutil.copy2(path, dest)
+    return dest
+
+
 def _list_sections(personal_info: dict[str, Any]) -> list[str]:
     """Top-level keys whose value is a list — the catalogue's entry sections."""
     return [k for k, v in personal_info.items() if isinstance(v, list)]
+
+
+def _count_entries(personal_info: dict[str, Any]) -> int:
+    """Total number of list-section entries across the catalogue."""
+    return sum(len(v) for v in personal_info.values() if isinstance(v, list))
+
+
+def _guard_destructive_write(
+    old: dict[str, Any], new: dict[str, Any], force: bool
+) -> None:
+    """Refuse a write that drops more than _MAX_ENTRY_LOSS_FRACTION of the
+    existing entries unless force=True. Raises ValueError with per-section
+    deltas so the caller can see exactly what would be lost.
+    """
+    old_n = _count_entries(old)
+    if old_n == 0 or force:
+        return
+    new_n = _count_entries(new)
+    if new_n >= old_n * (1 - _MAX_ENTRY_LOSS_FRACTION):
+        return
+    deltas = []
+    for section in sorted(set(_list_sections(old)) | set(_list_sections(new))):
+        before = len(old.get(section, []) or [])
+        after = len(new.get(section, []) or [])
+        if after < before:
+            deltas.append(f"  {section}: {before} -> {after}")
+    detail = "\n".join(deltas) or "  (entries removed across sections)"
+    raise ValueError(
+        f"Refusing write: it would drop {old_n - new_n} of {old_n} catalogue "
+        f"entries (> {int(_MAX_ENTRY_LOSS_FRACTION * 100)}%), which looks "
+        f"accidental.\n{detail}\n"
+        "If this is intentional, call again with force=True. A timestamped "
+        "backup of the current catalogue is always written to data/backups/ "
+        "before any successful write."
+    )
 
 
 @mcp.tool()
@@ -110,15 +164,29 @@ def get_ui_guidelines() -> dict[str, Any]:
 
 
 @mcp.tool()
-def update_personal_info(content: dict[str, Any]) -> dict[str, Any]:
-    """Replace the personal-info catalogue with `content` (whole-file write).
+def update_personal_info(
+    content: dict[str, Any], force: bool = False
+) -> dict[str, Any]:
+    """Replace the WHOLE personal-info catalogue with `content` (bulk write).
 
-    Workflow: call get_personal_info, mutate the dict, pass the entire result
-    here. The file is validated, written atomically (temp + rename), and the
-    saved content is returned for confirmation. Adding new top-level fields is
-    fine — schemas allow extra keys.
+    DISCOURAGED for edits: prefer the granular add_entry / patch_entry /
+    delete_entry tools, which make small, auditable diffs and cannot silently
+    drop an entry. Use this only for a full import/restore.
+
+    The file is validated, a timestamped backup of the current catalogue is
+    written to data/backups/ first, then the new content is written atomically
+    (temp + rename). A write that would drop more than
+    ~30% of existing entries is refused unless force=True.
     """
+    _bootstrap_personal_info()
     validated = validate_personal_info(content)
+    old = (
+        _read_json(paths.PERSONAL_INFO_PATH)
+        if paths.PERSONAL_INFO_PATH.exists()
+        else {}
+    )
+    _guard_destructive_write(old, validated, force)
+    _backup_json(paths.PERSONAL_INFO_PATH)
     _atomic_write_json(paths.PERSONAL_INFO_PATH, validated)
     return validated
 
