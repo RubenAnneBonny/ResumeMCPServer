@@ -19,22 +19,31 @@ missed**. Never silently drop something valuable.
    site and read the ad closely. Use the themes to steer the summary and which highlights
    you emphasise. (The server no longer ships a research tool; you do this natively.)
 1. **Rank first.** Call `get_relevance_review_prompt(company, job_description)` and run
-   the returned `prompt` in a fresh Task sub-agent. Use its 0–5 scores and `MUST_INCLUDE`
-   line: include the must-haves, cut the low scorers.
+   the returned `prompt` in a fresh Task sub-agent. Then call
+   `submit_relevance_review(company, job_description, results)` with the sub-agent's output.
+   This is a **hard code gate**: `generate_resume` refuses to run for this job until the
+   review is submitted (the server holds the artifact, so the step can't be faked). Use its
+   0–5 scores and `MUST_INCLUDE` line: include the must-haves, cut the low scorers.
 2. **Select + generate.** Pick and rewrite content (2–4 highlights per item) following
    `ui_guidelines.voice`: **no personal pronouns, past tense, strong action verbs, and
-   never em-dashes (—)** — use commas, colons, or parentheses (a `PreToolUse` hook blocks
-   `generate_resume` if em-dashes slip in). Then call `generate_resume(name, content)`.
+   never em-dashes (—)** — use commas, colons, or parentheses (the server rejects em-dashes
+   in `generate_resume`, and a `PreToolUse` hook also blocks them). Then call
+   `generate_resume(name, content, company, job_description)` — the same `company`/
+   `job_description` strings you passed to `submit_relevance_review`.
 3. **Critique after writing.** Call `get_resume_critique_prompt(name, company,
-   job_description)` and run it in a fresh Task sub-agent. It sees the full catalogue and
-   the rendered resume, so it reports **unsupported claims** (anything the catalogue can't
-   back), valuable entries you **wrongly omitted** (by id), filler to **cut/trim**, what's
-   working, truthful missing keywords, per-item feedback, and a **"Worth interviewing the
-   candidate about"** list. Two `PostToolUse` hooks also remind you (critique + guidelines).
-4. **Revise.** REMOVE/rephrase every unsupported claim, ADD every wrongly-omitted entry,
-   CUT the flagged filler, fix the keywords and per-item issues, call `generate_resume`
-   again, and repeat 3–4 until **"Unsupported claims" and "Wrongly omitted" are both empty**
-   and **"Cut or trim" is clean**.
+   job_description)` and run it in a fresh Task sub-agent, then call
+   `submit_resume_critique(name, company, job_description, findings)` with its output
+   (this unlocks `finalize_resume`). It sees the full catalogue and the rendered resume, so
+   it reports **unsupported claims** (anything the catalogue can't back), valuable entries
+   you **wrongly omitted** (by id), filler to **cut/trim**, what's working, truthful missing
+   keywords, per-item feedback, and a **"Worth interviewing the candidate about"** list.
+   Two `PostToolUse` hooks also remind you (critique + guidelines).
+4. **Revise, then finalize.** REMOVE/rephrase every unsupported claim, ADD every
+   wrongly-omitted entry, CUT the flagged filler, fix the keywords and per-item issues, call
+   `generate_resume` again, and repeat 3–4 until **"Unsupported claims" and "Wrongly
+   omitted" are both empty** and **"Cut or trim" is clean** (cap at ~3 rounds; only
+   *blocking* findings force another round). Then call `finalize_resume(name, company,
+   job_description)` to mark it done.
 5. **Targeted interview (optional, per critique).** For each item the critique flags under
    "Worth interviewing the candidate about", you MAY call `get_interview_prompt(section,
    target_id, company, job_description, focus=<the gap>)` and run that narrow interview

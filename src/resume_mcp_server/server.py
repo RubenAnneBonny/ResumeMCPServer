@@ -17,6 +17,7 @@ from resume_mcp_server.critic import (
     build_relevance_review_prompt,
     build_resume_critique_prompt,
 )
+from resume_mcp_server import state
 from resume_mcp_server.jobs import fetch_ad, search_jobs
 from resume_mcp_server.latex import compile_tex, tectonic_available
 from resume_mcp_server.render import render_resume
@@ -287,10 +288,40 @@ def get_relevance_review_prompt(
         ),
         "how_to_use": (
             "Launch a fresh sub-agent (e.g. the Task tool, general-purpose, no "
-            "inherited context) with this exact prompt. Use the returned 0-5 "
-            "rankings to choose which entries and highlights to include — drop "
-            "the low-scoring ones — then build content for generate_resume."
+            "inherited context) with this exact prompt. Then call "
+            "submit_relevance_review(company, job_description, results) with the "
+            "sub-agent's output — generate_resume is BLOCKED for this job until "
+            "you do. Use the returned 0-5 rankings to choose which entries and "
+            "highlights to include (drop the low-scoring ones), then build "
+            "content for generate_resume."
         ),
+    }
+
+
+@mcp.tool()
+def submit_relevance_review(
+    company: str,
+    job_description: str,
+    results: str,
+) -> dict[str, Any]:
+    """Register that the PRE-generation relevance review actually ran.
+
+    Call this after running get_relevance_review_prompt's prompt in a fresh
+    sub-agent, passing that sub-agent's verbatim output as `results`. This
+    UNLOCKS generate_resume for this (company, job_description): the gate exists
+    so the recruiter ranking can't be silently skipped, and so the server holds
+    the artifact rather than trusting a claim that it happened.
+
+    Args:
+        company: same company string you will pass to generate_resume.
+        job_description: same JD text you will pass to generate_resume.
+        results: the ranking sub-agent's output (0-5 scores + MUST_INCLUDE line).
+    """
+    state.record_relevance_review(company, job_description, results)
+    return {
+        "recorded": True,
+        "job_key": state.job_key(company, job_description),
+        "next": "generate_resume is now unlocked for this job.",
     }
 
 
@@ -306,23 +337,44 @@ def _safe_name(name: str) -> str:
 def generate_resume(
     name: str,
     content: dict[str, Any],
+    company: str,
+    job_description: str,
     compile_pdf: bool = True,
 ) -> dict[str, Any]:
     """Render a tailored resume to LaTeX and (by default) compile to PDF.
+
+    GATED: a relevance review must be registered for this (company,
+    job_description) first — call get_relevance_review_prompt, run it in a fresh
+    sub-agent, then submit_relevance_review. This makes the mandatory ranking
+    step unbypassable in code (not just via prose/hooks). After generating, run
+    the critique (get_resume_critique_prompt -> submit_resume_critique) and then
+    finalize_resume.
 
     Args:
         name: filename stem for output, e.g. "acme_swe_2026". Must match
             [A-Za-z0-9_-]+.
         content: the curated structured dict — same shape as personal_info,
             but trimmed and rewritten for the target JD. See get_resume_schema.
+        company: hiring company, e.g. "Citadel Securities". Must match the
+            company passed to submit_relevance_review.
+        job_description: the JD text. Must match the one passed to
+            submit_relevance_review.
         compile_pdf: if True (default), runs Tectonic to produce a PDF. If
             False, only the .tex file is written, useful for iterating on
             content without paying the compile cost.
 
     Returns paths to the generated .tex and .pdf (when compiled), plus any
-    Tectonic stdout/stderr/log path on failure.
+    Tectonic stdout/stderr on failure.
     """
     safe = _safe_name(name)
+    if not state.has_relevance_review(company, job_description):
+        raise ValueError(
+            "generate_resume is blocked: no relevance review registered for "
+            f"company={company!r}. Run get_relevance_review_prompt in a fresh "
+            "sub-agent, then call submit_relevance_review(company, "
+            "job_description, results) with the SAME company/job_description "
+            "strings, then retry."
+        )
     paths.ensure_dirs()
     _bootstrap_ui_guidelines()
     ui = _read_json(paths.UI_GUIDELINES_PATH)
@@ -341,6 +393,11 @@ def generate_resume(
         "name": safe,
         "tex_path": str(tex_path),
         "compiled": False,
+        "next_step": (
+            "Critique this resume: run get_resume_critique_prompt in a fresh "
+            "sub-agent, call submit_resume_critique with its findings, revise, "
+            "then finalize_resume."
+        ),
     }
 
     if not compile_pdf:
@@ -489,14 +546,83 @@ def get_resume_critique_prompt(
         ),
         "how_to_use": (
             "Launch a fresh sub-agent (e.g. the Task tool, general-purpose, no "
-            "inherited context) with this exact prompt. Apply its results to your "
-            "content: REMOVE/rephrase every UNSUPPORTED claim it flags, ADD every "
-            "wrongly-omitted entry, CUT the filler it lists under 'Cut or trim', "
-            "keep what it marks as working, then fix the missing keywords and "
-            "per-item issues and call generate_resume again. Repeat until the "
-            "'Unsupported claims' and 'Wrongly omitted' sections both come back "
-            "empty and nothing remains under 'Cut or trim'."
+            "inherited context) with this exact prompt, then call "
+            "submit_resume_critique(name, company, job_description, findings) "
+            "with its output — finalize_resume is BLOCKED until you do. Apply its "
+            "results to your content: REMOVE/rephrase every UNSUPPORTED claim it "
+            "flags, ADD every wrongly-omitted entry, CUT the filler it lists "
+            "under 'Cut or trim', keep what it marks as working, then fix the "
+            "missing keywords and per-item issues and call generate_resume again. "
+            "Repeat until the 'Unsupported claims' and 'Wrongly omitted' sections "
+            "both come back empty and nothing remains under 'Cut or trim'."
         ),
+    }
+
+
+@mcp.tool()
+def submit_resume_critique(
+    name: str,
+    company: str,
+    job_description: str,
+    findings: str,
+) -> dict[str, Any]:
+    """Register that the POST-generation critique actually ran for `name`.
+
+    Call this after running get_resume_critique_prompt's prompt in a fresh
+    sub-agent, passing that sub-agent's verbatim output as `findings`. This
+    UNLOCKS finalize_resume for this resume. The gate ensures the critique
+    isn't skipped and that the server holds the artifact.
+
+    Args:
+        name: the resume stem that was critiqued, e.g. "acme_swe_2026".
+        company: same company string used for generate_resume.
+        job_description: same JD text used for generate_resume.
+        findings: the critique sub-agent's verbatim output.
+    """
+    safe = _safe_name(name)
+    state.record_critique(safe, company, job_description, findings)
+    return {
+        "recorded": True,
+        "next": (
+            "Revise per the findings and re-run generate_resume as needed, then "
+            "call finalize_resume when the critique is clean."
+        ),
+    }
+
+
+@mcp.tool()
+def finalize_resume(
+    name: str,
+    company: str,
+    job_description: str,
+) -> dict[str, Any]:
+    """Mark a resume final. GATED on a submitted critique for `name`.
+
+    This is the terminal step of the tailoring loop. It refuses unless a
+    critique has been registered (submit_resume_critique) for this resume and
+    (company, job_description), so a resume can't be shipped without having been
+    critiqued at least once. Returns the resume's paths for confirmation.
+
+    Args:
+        name: the resume stem to finalize, e.g. "acme_swe_2026".
+        company: same company string used throughout.
+        job_description: same JD text used throughout.
+    """
+    safe = _safe_name(name)
+    if not state.has_critique(safe, company, job_description):
+        raise ValueError(
+            f"finalize_resume is blocked: no critique registered for {safe!r}. "
+            "Run get_resume_critique_prompt in a fresh sub-agent, then call "
+            "submit_resume_critique(name, company, job_description, findings) "
+            "with the SAME name/company/job_description, then retry."
+        )
+    tex_path = paths.OUTPUT_DIR / f"{safe}.tex"
+    pdf_path = paths.OUTPUT_DIR / f"{safe}.pdf"
+    return {
+        "name": safe,
+        "finalized": True,
+        "tex_path": str(tex_path) if tex_path.exists() else None,
+        "pdf_path": str(pdf_path) if pdf_path.exists() else None,
     }
 
 
