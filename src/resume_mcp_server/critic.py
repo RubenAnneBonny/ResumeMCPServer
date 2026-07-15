@@ -289,6 +289,12 @@ honest, one-page resume beats a padded one.
 7. **Prioritized fixes.** A short ordered list (max 5) of the highest-impact
    edits before submitting — mix additions (omitted entries), cuts (filler), and
    honesty fixes as warranted.
+8. **Verdict (blocking vs ready).** End with a single verdict so the revision
+   loop can terminate instead of oscillating. Return `BLOCKING` if there is any
+   unsupported claim, any wrongly-omitted entry scoring 4–5, or any genuine
+   filler still on the page; otherwise return `READY` (remaining points are
+   nitpicks the candidate may take or leave). Do NOT invent blockers to look
+   thorough — a clean resume is a valid outcome.
 
 # Output format (return EXACTLY this, nothing else)
 ```
@@ -325,6 +331,9 @@ honest, one-page resume beats a padded one.
 ## Prioritized fixes
 1. <highest-impact edit>
 ... (up to 5)
+
+## Verdict
+<BLOCKING or READY> — <one line: what must change, or "clean">
 ```
 
 Do not pad your own critique. If a bullet is genuinely strong, say so briefly;
@@ -461,4 +470,113 @@ sub-agent, and do NOT dump a long questionnaire.
    strictly truthful to what the candidate told you.
 5. STOP and show the candidate the proposed entry as JSON, and wait for their
    approval before anything is written. After they approve, the entry is saved
-   to `personal_info.json` via update_personal_info (merge by `id`)."""
+   to `personal_info.json` via add_entry (new) or patch_entry (refine by `id`)."""
+
+
+# --------------------------------------------------------------------------
+# Final-pass reviewers. These run ONCE near the end of tailoring (not inside
+# the revision loop) and each answers a question the detailed critique does not.
+# --------------------------------------------------------------------------
+
+SKIM_PERSONA = (
+    "You are a busy recruiter giving this resume the ~6-second skim it will "
+    "really get. You have NOT read it carefully and you will not — react only to "
+    "what jumps out in a fast pass, the way a human eye actually moves down a "
+    "page. Your value is catching placement and emphasis problems a careful "
+    "reader never notices."
+)
+
+RED_FLAG_PERSONA = (
+    "You are a sharp, slightly skeptical hiring manager looking for reasons to "
+    "HESITATE about this candidate. You are not being unfair — you are surfacing "
+    "the questions this resume would raise in a real screen, so the candidate can "
+    "prepare for or preempt them. Overclaiming, titles that sound too senior for "
+    "the experience shown, unexplained gaps, and bullets that invite a question "
+    "the candidate may not answer well are exactly what you flag."
+)
+
+PROOFREADER_PERSONA = (
+    "You are a meticulous proofreader and copy editor for resumes. You check "
+    "mechanical consistency ONLY — not strategy, not content selection. You are "
+    "precise, literal, and you quote the exact text you are flagging."
+)
+
+
+def build_skim_prompt(company: str, job_description: str, resume_text: str) -> str:
+    """Prompt for the 6-second first-impression skim (final pass)."""
+    company_label = company or "the company"
+    return f"""{SKIM_PERSONA}
+
+# Role you are skimming for: {company_label}
+## Job description
+{job_description.strip() or "(no job description provided)"}
+
+# The resume (as plain text — this is roughly what your eye sees)
+{resume_text.strip()}
+
+# Your task
+Do a genuine ~6-second skim, then answer briefly and honestly:
+
+1. **Takeaway.** In one sentence, who is this candidate and are they plausibly
+   right for THIS role? (Your gut reaction, not a considered judgement.)
+2. **Strongest line.** What one line or item pulled your eye and helped most?
+3. **Missed entirely.** What did you NOT notice at all on the skim (buried at the
+   bottom, lost in a dense block, under-emphasised)? Name it — this is the point.
+4. **Fix.** The single highest-impact placement/emphasis change (move X up, bold
+   Y, split that dense paragraph) — not a content change.
+
+Keep it short. Do not carefully re-read; first impressions are the data."""
+
+
+def build_red_flag_prompt(company: str, job_description: str, resume_text: str) -> str:
+    """Prompt for the red-flag / skeptical-question pass (final pass)."""
+    company_label = company or "the company"
+    return f"""{RED_FLAG_PERSONA}
+
+# Role: {company_label}
+## Job description
+{job_description.strip() or "(no job description provided)"}
+
+# The resume (plain text)
+{resume_text.strip()}
+
+# Your task
+List what would make you hesitate or ask a skeptical question about this
+candidate for THIS role. For each flag give: the exact line/claim, the doubt it
+raises, and the question you'd ask in a screen. Focus on:
+
+- Overclaiming or a title that sounds too senior for the evidence shown.
+- Unexplained gaps, ambiguous scope, or "we vs I" on a key achievement.
+- Bullets that invite a question the candidate may struggle to answer.
+
+Then, for each flag, note whether it is best handled by (a) rewording the line,
+or (b) preparing an answer for interview. "none" if nothing genuinely gives you
+pause — do not manufacture concerns."""
+
+
+def build_proofread_prompt(resume_text: str) -> str:
+    """Prompt for the final mechanical proofread / consistency pass."""
+    return f"""{PROOFREADER_PERSONA}
+
+# The resume (plain text)
+{resume_text.strip()}
+
+# Your task
+Check ONLY mechanical consistency and correctness. Quote the exact offending
+text for each finding. Report:
+
+1. **Tense.** Bullets should be consistent (past tense for completed work). Flag
+   any that switch.
+2. **Date formats.** Flag any inconsistency (e.g. "2024" vs "Jan 2024" vs
+   "2024-01" mixed across the page).
+3. **Repetition.** The same action verb opening several bullets; the same word
+   repeated awkwardly close together.
+4. **Punctuation / capitalisation.** Inconsistent trailing punctuation on
+   bullets, stray double spaces, inconsistent capitalisation of headings.
+5. **Spelling / typos.** Anything misspelled.
+6. **Language.** Note if the text mixes languages, or if the target market
+   (e.g. a Swedish Platsbanken ad) would expect a different language than what is
+   written — flag it, don't translate.
+
+Return a simple list grouped by the categories above; "clean" for any category
+with no issues. Do not comment on content strategy or what to include."""

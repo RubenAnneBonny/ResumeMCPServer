@@ -1,11 +1,12 @@
 """PreToolUse hook for the `resume` MCP server's generate_resume tool.
 
 Claude Code runs this BEFORE every `mcp__resume__generate_resume` call. It scans
-the resume content for em-dashes (U+2014, "—") and, if it finds any, DENIES the
-call with a reason telling the agent to rewrite without them. Em-dashes have no
-glyph in the cmr/cfr-lm fonts and have repeatedly broken the Tectonic compile;
-they also read poorly on a resume. The render layer converts stray dashes as a
-safety net, but blocking here keeps them out of the content entirely.
+the resume content for em-dashes and related long dashes and, if it finds any,
+DENIES the call with a reason telling the agent to rewrite without them. These
+have no glyph in the cmr/cfr-lm fonts and have repeatedly broken the Tectonic
+compile; they also read poorly on a resume. The server rejects them too (see
+checks.FORBIDDEN_DASHES) — this hook is an early, Claude-Code-only nicety that
+keeps them out of the content before the tool call even runs.
 
 Output contract: print a JSON object on stdout whose
 `hookSpecificOutput.permissionDecision` is "deny" (with a reason) to block the
@@ -15,19 +16,22 @@ call, or nothing to let it through.
 import json
 import sys
 
-EM_DASH = "—"  # —
+# Kept in sync with checks.FORBIDDEN_DASHES on the server. En dash (U+2013) is
+# intentionally allowed as a range separator.
+FORBIDDEN_DASHES = ("—", "―", "‒", "⸺", "⸻")
 
 REASON = (
-    "This resume content contains em-dashes (—), which break the Tectonic "
-    "PDF compile and read poorly on a resume. Rewrite the affected bullets WITHOUT "
-    "em-dashes — use a comma, colon, parentheses, or two separate sentences — and "
-    "call generate_resume again."
+    "This resume content contains em-dashes (or related long dashes), which break "
+    "the Tectonic PDF compile and read poorly on a resume. Rewrite the affected "
+    "bullets WITHOUT them (use a comma, colon, parentheses, or two separate "
+    "sentences) and call generate_resume again."
 )
 
 
 def _has_em_dash(value) -> bool:
-    """True if an em-dash appears anywhere in the (possibly nested) tool input."""
-    return EM_DASH in json.dumps(value, ensure_ascii=False)
+    """True if any forbidden dash appears anywhere in the (nested) tool input."""
+    blob = json.dumps(value, ensure_ascii=False)
+    return any(d in blob for d in FORBIDDEN_DASHES)
 
 
 def main() -> None:

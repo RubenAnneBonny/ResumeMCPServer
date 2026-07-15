@@ -38,12 +38,21 @@ missed**. Never silently drop something valuable.
    you **wrongly omitted** (by id), filler to **cut/trim**, what's working, truthful missing
    keywords, per-item feedback, and a **"Worth interviewing the candidate about"** list.
    Two `PostToolUse` hooks also remind you (critique + guidelines).
-4. **Revise, then finalize.** REMOVE/rephrase every unsupported claim, ADD every
-   wrongly-omitted entry, CUT the flagged filler, fix the keywords and per-item issues, call
-   `generate_resume` again, and repeat 3–4 until **"Unsupported claims" and "Wrongly
-   omitted" are both empty** and **"Cut or trim" is clean** (cap at ~3 rounds; only
-   *blocking* findings force another round). Then call `finalize_resume(name, company,
-   job_description)` to mark it done.
+4. **Revise.** REMOVE/rephrase every unsupported claim, ADD every wrongly-omitted entry,
+   CUT the flagged filler, fix the keywords and per-item issues, call `generate_resume`
+   again, and repeat 3–4 until the critique's **Verdict is `READY`** (cap at ~3 rounds; only
+   *blocking* findings — unsupported claims, high-value omissions, real filler — force
+   another round; nitpicks don't). Each `generate_resume` returns deterministic
+   **`page_check`** and **`ats_check`**: fix overflow by CUTTING the lowest-relevance entry,
+   not by shrinking margins. The server also rejects em-dashes and refuses to compile
+   forbidden dashes, for every client.
+4b. **Final passes (once, near the end — NOT in the loop).** On the settled resume, run the
+   three one-shot reviewers in fresh sub-agents: `get_skim_review_prompt` (6-second
+   first-impression / emphasis), `get_red_flag_prompt` (skeptical questions; each can feed a
+   targeted interview), and `get_proofread_prompt` (tense/date/verb/punctuation/language —
+   final version only). You are the arbiter: apply real fixes, ignore beige committee-speak.
+4c. **Finalize.** Call `finalize_resume(name, company, job_description)` — it refuses unless a
+   critique is registered AND the PDF is within `max_pages`.
 5. **Targeted interview (optional, per critique).** For each item the critique flags under
    "Worth interviewing the candidate about", you MAY call `get_interview_prompt(section,
    target_id, company, job_description, focus=<the gap>)` and run that narrow interview

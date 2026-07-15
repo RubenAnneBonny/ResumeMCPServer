@@ -10,12 +10,15 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from resume_mcp_server import paths
+from resume_mcp_server import checks, paths
 from resume_mcp_server.critic import (
     build_interview_prompt,
+    build_proofread_prompt,
     build_qualification_check_prompt,
+    build_red_flag_prompt,
     build_relevance_review_prompt,
     build_resume_critique_prompt,
+    build_skim_prompt,
 )
 from resume_mcp_server import state
 from resume_mcp_server.jobs import fetch_ad, search_jobs
@@ -101,6 +104,19 @@ def _backup_json(path: Path) -> Path | None:
 def _list_sections(personal_info: dict[str, Any]) -> list[str]:
     """Top-level keys whose value is a list — the catalogue's entry sections."""
     return [k for k, v in personal_info.items() if isinstance(v, list)]
+
+
+def _max_pages(ui: dict[str, Any]) -> int:
+    """Page limit from ui_guidelines.page.max_pages (default 1). One page is the
+    right default for students and Anglo/quant firms; a Swedish-market config
+    can raise it to 2."""
+    page = ui.get("page") if isinstance(ui, dict) else None
+    if isinstance(page, dict):
+        try:
+            return max(1, int(page.get("max_pages", 1)))
+        except (TypeError, ValueError):
+            return 1
+    return 1
 
 
 def _count_entries(personal_info: dict[str, Any]) -> int:
@@ -604,6 +620,16 @@ def generate_resume(
     # field with a sane default and a readable pydantic error on real problems.
     content = validate_personal_info(content)
 
+    # Reject em-dashes (and friends) server-side, so the house style holds for
+    # every client — not just Claude Code, whose PreToolUse hook is one more
+    # layer. The renderer would silently convert them otherwise.
+    dash_findings = checks.find_forbidden_dashes(content)
+    if dash_findings:
+        raise ValueError(
+            "content contains forbidden dash characters (use commas, colons, or "
+            "parentheses instead):\n- " + "\n- ".join(dash_findings)
+        )
+
     tex_source = render_resume("resume.tex.j2", content, ui)
     tex_path = paths.OUTPUT_DIR / f"{safe}.tex"
     tex_path.write_text(tex_source, encoding="utf-8")
@@ -626,6 +652,11 @@ def generate_resume(
     result["compiled"] = cr.ok
     if cr.ok and cr.pdf_path is not None:
         result["pdf_path"] = str(cr.pdf_path)
+        # Deterministic post-compile checks. These surface problems in the
+        # result (they don't raise) so the agent can iterate; finalize_resume
+        # is the hard gate that refuses an over-length resume.
+        result["page_check"] = checks.page_check(cr.pdf_path, _max_pages(ui))
+        result["ats_check"] = checks.ats_check(cr.pdf_path, content)
     if cr.error:
         result["error"] = cr.error
     if cr.stdout:
@@ -819,8 +850,9 @@ def finalize_resume(
 
     This is the terminal step of the tailoring loop. It refuses unless a
     critique has been registered (submit_resume_critique) for this resume and
-    (company, job_description), so a resume can't be shipped without having been
-    critiqued at least once. Returns the resume's paths for confirmation.
+    (company, job_description), AND the compiled PDF is within the page limit
+    (ui_guidelines.page.max_pages, default 1) — so a resume can't be shipped
+    uncritiqued or overflowing. Returns the resume's paths for confirmation.
 
     Args:
         name: the resume stem to finalize, e.g. "acme_swe_2026".
@@ -837,11 +869,102 @@ def finalize_resume(
         )
     tex_path = paths.OUTPUT_DIR / f"{safe}.tex"
     pdf_path = paths.OUTPUT_DIR / f"{safe}.pdf"
+
+    if pdf_path.exists():
+        _bootstrap_ui_guidelines()
+        ui = _read_json(paths.UI_GUIDELINES_PATH)
+        pc = checks.page_check(pdf_path, _max_pages(ui))
+        if not pc["ok"]:
+            raise ValueError(
+                f"finalize_resume is blocked: {pc.get('message', 'too many pages')}"
+            )
+
     return {
         "name": safe,
         "finalized": True,
         "tex_path": str(tex_path) if tex_path.exists() else None,
         "pdf_path": str(pdf_path) if pdf_path.exists() else None,
+    }
+
+
+def _resume_plain_text(safe: str) -> str:
+    """Plain text of a rendered resume — the PDF's extracted text if available
+    (closest to what a human sees), else the raw .tex source."""
+    pdf_path = paths.OUTPUT_DIR / f"{safe}.pdf"
+    if pdf_path.exists():
+        text = checks.pdf_text(pdf_path)
+        if text and text.strip():
+            return text
+    tex_path = paths.OUTPUT_DIR / f"{safe}.tex"
+    if tex_path.exists():
+        return tex_path.read_text(encoding="utf-8")
+    raise FileNotFoundError(
+        f"No resume found for '{safe}' in {paths.OUTPUT_DIR}. Generate it first."
+    )
+
+
+@mcp.tool()
+def get_skim_review_prompt(
+    name: str,
+    company: str = "",
+    job_description: str = "",
+) -> dict[str, Any]:
+    """Build a 6-second-skim first-impression prompt for a rendered resume.
+
+    A FINAL pass (run once near the end, not in the revision loop). A fresh
+    sub-agent sees only the rendered text and reacts fast: the takeaway, the
+    strongest line, and — the point — what it did NOT notice at all. Catches
+    placement/emphasis problems the careful critique never surfaces.
+    """
+    safe = _safe_name(name)
+    return {
+        "prompt": build_skim_prompt(company, job_description, _resume_plain_text(safe)),
+        "how_to_use": (
+            "Run in a fresh sub-agent. Act on emphasis/placement fixes (move a "
+            "strong item up, break a dense block); this is not a content-cut pass."
+        ),
+    }
+
+
+@mcp.tool()
+def get_red_flag_prompt(
+    name: str,
+    company: str = "",
+    job_description: str = "",
+) -> dict[str, Any]:
+    """Build a red-flag / skeptical-question prompt for a rendered resume.
+
+    A FINAL pass. A fresh sub-agent lists what would make a hiring manager
+    hesitate (overclaiming, a too-senior-sounding title, ambiguous scope,
+    bullets that invite a question). Each flag can feed get_interview_prompt.
+    """
+    safe = _safe_name(name)
+    return {
+        "prompt": build_red_flag_prompt(
+            company, job_description, _resume_plain_text(safe)
+        ),
+        "how_to_use": (
+            "Run in a fresh sub-agent. Reword the lines it flags, or (per the "
+            "flag) turn it into a get_interview_prompt to close the gap truthfully."
+        ),
+    }
+
+
+@mcp.tool()
+def get_proofread_prompt(name: str) -> dict[str, Any]:
+    """Build a mechanical proofread/consistency prompt for the FINAL resume.
+
+    Run ONCE on the final version (wasted on drafts): tense consistency, date
+    formats, repeated opening verbs, punctuation, typos, and a language check
+    (e.g. a Swedish Platsbanken ad may expect Swedish). Not a content pass.
+    """
+    safe = _safe_name(name)
+    return {
+        "prompt": build_proofread_prompt(_resume_plain_text(safe)),
+        "how_to_use": (
+            "Run in a fresh sub-agent on the FINAL version only. Apply the "
+            "mechanical fixes, then regenerate once."
+        ),
     }
 
 
