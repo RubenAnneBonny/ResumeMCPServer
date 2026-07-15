@@ -7,12 +7,15 @@ from pathlib import Path
 
 from resume_mcp_server.paths import OUTPUT_DIR
 
+# Hard ceiling on a single Tectonic invocation. Without this a hung compile
+# would block the MCP tool call indefinitely.
+COMPILE_TIMEOUT_SECONDS = 120
+
 
 @dataclass
 class CompileResult:
     ok: bool
     pdf_path: Path | None
-    log_path: Path | None
     stdout: str
     stderr: str
     error: str | None
@@ -27,7 +30,6 @@ def compile_tex(tex_path: Path) -> CompileResult:
         return CompileResult(
             ok=False,
             pdf_path=None,
-            log_path=None,
             stdout="",
             stderr="",
             error=(
@@ -40,17 +42,30 @@ def compile_tex(tex_path: Path) -> CompileResult:
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    proc = subprocess.run(
-        [
-            "tectonic",
-            "--outdir",
-            str(OUTPUT_DIR),
-            str(tex_path),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        proc = subprocess.run(
+            [
+                "tectonic",
+                "--outdir",
+                str(OUTPUT_DIR),
+                str(tex_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=COMPILE_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        return CompileResult(
+            ok=False,
+            pdf_path=None,
+            stdout=exc.stdout or "",
+            stderr=exc.stderr or "",
+            error=(
+                f"tectonic timed out after {COMPILE_TIMEOUT_SECONDS}s. "
+                "The .tex may contain a construct that loops or waits for input."
+            ),
+        )
 
     pdf_path = OUTPUT_DIR / (tex_path.stem + ".pdf")
 
@@ -58,7 +73,6 @@ def compile_tex(tex_path: Path) -> CompileResult:
         return CompileResult(
             ok=True,
             pdf_path=pdf_path,
-            log_path=None,
             stdout=proc.stdout,
             stderr=proc.stderr,
             error=None,
@@ -67,7 +81,6 @@ def compile_tex(tex_path: Path) -> CompileResult:
     return CompileResult(
         ok=False,
         pdf_path=None,
-        log_path=None,
         stdout=proc.stdout,
         stderr=proc.stderr,
         error=f"tectonic exited with code {proc.returncode}",

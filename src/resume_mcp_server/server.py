@@ -259,6 +259,12 @@ def generate_resume(
     _bootstrap_ui_guidelines()
     ui = _read_json(paths.UI_GUIDELINES_PATH)
 
+    # Validate + fill defaults BEFORE rendering. Without this, a content dict
+    # that omits a top-level key (e.g. no "title") raises a cryptic Jinja
+    # UndefinedError under StrictUndefined; validation yields every top-level
+    # field with a sane default and a readable pydantic error on real problems.
+    content = validate_personal_info(content)
+
     tex_source = render_resume("resume.tex.j2", content, ui)
     tex_path = paths.OUTPUT_DIR / f"{safe}.tex"
     tex_path.write_text(tex_source, encoding="utf-8")
@@ -276,8 +282,6 @@ def generate_resume(
     result["compiled"] = cr.ok
     if cr.ok and cr.pdf_path is not None:
         result["pdf_path"] = str(cr.pdf_path)
-    if cr.log_path is not None:
-        result["log_path"] = str(cr.log_path)
     if cr.error:
         result["error"] = cr.error
     if cr.stdout:
@@ -365,8 +369,6 @@ def compile_resume(name: str) -> dict[str, Any]:
     }
     if cr.ok and cr.pdf_path is not None:
         result["pdf_path"] = str(cr.pdf_path)
-    if cr.log_path is not None:
-        result["log_path"] = str(cr.log_path)
     if cr.error:
         result["error"] = cr.error
     if cr.stdout:
