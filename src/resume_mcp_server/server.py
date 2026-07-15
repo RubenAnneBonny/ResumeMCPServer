@@ -152,6 +152,91 @@ def get_personal_info() -> dict[str, Any]:
     return _read_json(paths.PERSONAL_INFO_PATH)
 
 
+def _entry_label(item: dict[str, Any]) -> str:
+    return (
+        item.get("title")
+        or item.get("name")
+        or item.get("degree")
+        or item.get("id")
+        or "(untitled)"
+    )
+
+
+def _entry_oneliner(item: dict[str, Any]) -> str:
+    narrative = (item.get("narrative") or "").strip()
+    if narrative:
+        first = re.split(r"(?<=[.!?])\s", narrative)[0]
+        return first[:160]
+    highlights = item.get("highlights") or []
+    if highlights and isinstance(highlights[0], dict):
+        return (highlights[0].get("text") or "")[:160]
+    return ""
+
+
+@mcp.tool()
+def get_catalogue_index() -> dict[str, Any]:
+    """Return a COMPACT index of the catalogue: ids, labels, one-line summaries.
+
+    Use this instead of get_personal_info for the main tailoring flow — it is a
+    fraction of the tokens and enough to decide what to pull in. Fetch full
+    detail for the entries you actually want with get_entries(ids). (The fresh
+    sub-agents that run the recruiter reviews still see the whole catalogue.)
+
+    Returns the candidate's name/title/summary plus, per list section, a list of
+    {id, label, summary} rows.
+    """
+    _bootstrap_personal_info()
+    pi = _read_json(paths.PERSONAL_INFO_PATH)
+    sections: dict[str, Any] = {}
+    for section in _list_sections(pi):
+        rows = [
+            {
+                "id": it.get("id", ""),
+                "label": _entry_label(it),
+                "summary": _entry_oneliner(it),
+            }
+            for it in pi[section]
+            if isinstance(it, dict)
+        ]
+        sections[section] = rows
+    return {
+        "name": pi.get("name", ""),
+        "title": pi.get("title", ""),
+        "summary": pi.get("summary", ""),
+        "sections": sections,
+    }
+
+
+@mcp.tool()
+def get_entries(ids: list[str]) -> dict[str, Any]:
+    """Return the FULL entries for the given ids (companion to get_catalogue_index).
+
+    Look up ids across every list section and return the matching entries with
+    all their fields, so you can pull only the entries you decided to include
+    rather than loading the whole catalogue.
+
+    Args:
+        ids: entry ids from get_catalogue_index, e.g. ["alpha", "imo-2024"].
+
+    Returns {"entries": {section: [entry, ...]}, "missing": [ids not found]}.
+    """
+    _bootstrap_personal_info()
+    pi = _read_json(paths.PERSONAL_INFO_PATH)
+    wanted = set(ids)
+    found: dict[str, list[Any]] = {}
+    seen: set[str] = set()
+    for section in _list_sections(pi):
+        matches = [
+            it
+            for it in pi[section]
+            if isinstance(it, dict) and it.get("id") in wanted
+        ]
+        if matches:
+            found[section] = matches
+            seen.update(it.get("id") for it in matches)
+    return {"entries": found, "missing": sorted(wanted - seen)}
+
+
 @mcp.tool()
 def get_ui_guidelines() -> dict[str, Any]:
     """Return the UI / style guidelines (data/ui_guidelines.json).
@@ -363,7 +448,10 @@ def get_resume_schema() -> dict[str, Any]:
         "job_description) and run the returned prompt in a FRESH sub-agent (e.g. "
         "the Task tool, no inherited context). It scores every catalogue entry "
         "0-5 for this job. Cut the low-scoring ones.\n"
-        "2) Read get_personal_info() in full. It is the catalogue, not the resume.\n"
+        "2) Survey the catalogue with get_catalogue_index() (compact: ids, "
+        "labels, one-liners), then pull full detail for the entries you want "
+        "with get_entries(ids). Reserve get_personal_info() for when you truly "
+        "need everything. The index is the catalogue, not the resume.\n"
         "3) Using the rankings, pick the items most relevant to the JD per section "
         "(experience, education, projects, competitions, certifications). The agent "
         "decides counts — typical output is e.g. 2 of 3 jobs, 4 of 4 education "
