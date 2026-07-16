@@ -111,13 +111,14 @@ shipping it.
 
 Read these before selecting content; they change what "done" means.
 
-- **`selection.include_all_experience`** (default `false`). When `true`, **every job in the
-  catalogue must appear on the resume** — the relevance review then ranks jobs for
-  *emphasis*, not for inclusion. An older or off-target role may be compressed to
-  title/company/dates with 0–1 bullets, but **never dropped** (a missing job reads as a
-  gap). `generate_resume` returns a `selection_check` naming any missing `id`, and
-  `finalize_resume` refuses until it is clean. Projects, competitions, and certifications
-  stay agent-selected either way.
+- **`selection.require_all_from`** (default `[]`). Lists the catalogue sections where
+  **every entry must appear on the resume** — the relevance review then ranks those for
+  *emphasis*, not for inclusion. An older or off-target entry may be compressed to its
+  heading with 0–1 bullets, but **never dropped** (a missing job reads as a gap).
+  `generate_resume` returns a `selection_check` naming any missing `id`, and
+  `finalize_resume` refuses until it is clean. Sections not listed stay agent-selected.
+  The older boolean `selection.include_all_experience: true` still works and means
+  `["experience"]`.
 - **`page.max_pages`** (default 1) is a hard ceiling; **`page.target_pages`** (optional) is
   a floor. Coming in under the target is a real finding: ADD the next-highest-relevance
   entries or expand the highlights of what's already there, guided by the relevance review.
@@ -126,6 +127,15 @@ Read these before selecting content; they change what "done" means.
 - **`section_titles` / `skill_labels`** set the rendered headers (e.g. Swedish). If the
   resume is written in another language, set these too, or the page mixes languages. The
   template supplies English only as a fallback.
+- **`sections`** (optional) is the ordered list of what actually renders: which sections
+  exist, their order, their titles, and which catalogue keys feed each. Absent = the
+  default eight; `[]` = render nothing. **Never assume the default set** — call
+  `get_ui_guidelines()` and read `resolved_sections` (or `get_resume_schema()["sections"]`)
+  to see what this user's resume will contain. A section can merge several sources under
+  one heading, and its `fields` name catalogue fields, so a user may have invented a
+  section (e.g. `publications`) that no template code mentions. Titles resolve as
+  `sections[].title` → `section_titles[key]` → English default → title-cased key, so a
+  translation-only config still just sets `section_titles`.
 - **`voice.banned_phrases`** are rejected server-side anywhere in the content.
 
 ## Entry interview (catalogue enrichment)

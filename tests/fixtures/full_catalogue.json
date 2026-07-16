@@ -1,0 +1,128 @@
+{
+  "name": "Jordan Fixture",
+  "title": "Software Engineer",
+  "contact": {
+    "email": "jordan@example.com",
+    "phone": "+46 70 000 00 00",
+    "location": "Stockholm, Sweden",
+    "links": [
+      { "label": "GitHub", "url": "https://example.com/gh", "display": "github.com/jordan" },
+      { "label": "Site", "url": "https://example.com/s", "display": "" }
+    ]
+  },
+  "summary": "Engineer with 100% focus on throughput & latency, using C_++ and R&D methods.",
+  "education": [
+    {
+      "id": "edu-msc",
+      "degree": "MSc Engineering Mathematics",
+      "institution": "Example University",
+      "location": "Stockholm",
+      "start_date": "2022",
+      "end_date": "2027",
+      "highlights": [{ "text": "Coursework in optimisation & numerical analysis." }],
+      "gpa": "4.8/5.0"
+    },
+    {
+      "id": "edu-nolocation",
+      "degree": "Exchange Semester",
+      "institution": "Другой Институт",
+      "location": "",
+      "start_date": "2025",
+      "end_date": "2025",
+      "highlights": []
+    }
+  ],
+  "experience": [
+    {
+      "id": "exp-quant",
+      "title": "Quant Intern",
+      "company": "Example Capital",
+      "location": "Stockholm",
+      "start_date": "2025-06",
+      "end_date": "2025-08",
+      "highlights": [
+        { "text": "Cut backtest runtime 40% by vectorising the pricing loop." },
+        { "text": "Shipped a risk report used daily by 12 traders." }
+      ],
+      "tech": ["Python", "C++"]
+    },
+    {
+      "id": "exp-nohighlights",
+      "title": "Teaching Assistant",
+      "company": "Example University",
+      "location": "",
+      "start_date": "2024",
+      "end_date": "2024",
+      "highlights": []
+    }
+  ],
+  "competitions": [
+    {
+      "id": "comp-icpc",
+      "name": "ICPC Nordic",
+      "placement": "3rd place",
+      "date": "2025",
+      "highlights": [{ "text": "Solved 9 of 11 problems." }]
+    },
+    {
+      "id": "comp-noplacement",
+      "name": "Example Open",
+      "placement": "",
+      "date": "2024",
+      "highlights": []
+    }
+  ],
+  "projects": [
+    {
+      "id": "proj-solver",
+      "name": "Sparse Solver",
+      "highlights": [{ "text": "Implemented a conjugate-gradient solver from scratch." }],
+      "tech": ["Rust", "LAPACK"],
+      "links": []
+    },
+    {
+      "id": "proj-notech",
+      "name": "Plain Project",
+      "highlights": [],
+      "tech": [],
+      "links": []
+    }
+  ],
+  "skills": {
+    "languages": ["Python", "C++", "Rust"],
+    "frameworks": ["NumPy", "PyTorch"],
+    "tools": ["Git", "Docker"],
+    "data_structures": ["Segment trees"],
+    "algorithms": ["Dynamic programming"]
+  },
+  "voluntary_work": [
+    {
+      "id": "vol-mentor",
+      "title": "Mentor",
+      "organization": "Example Society",
+      "start_date": "2023",
+      "end_date": "2024",
+      "highlights": [{ "text": "Mentored 5 first-year students." }]
+    }
+  ],
+  "languages": [
+    { "language": "Swedish", "proficiency": "Native" },
+    { "language": "English", "proficiency": "Fluent" }
+  ],
+  "certifications": [
+    {
+      "id": "cert-aws",
+      "name": "AWS Solutions Architect",
+      "issuer": "Amazon Web Services",
+      "date": "2025",
+      "url": "https://example.com/cert"
+    },
+    {
+      "id": "cert-noissuer",
+      "name": "Bare Certificate",
+      "issuer": "",
+      "date": "",
+      "url": ""
+    }
+  ]
+}

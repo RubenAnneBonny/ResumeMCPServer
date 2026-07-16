@@ -115,42 +115,74 @@ def page_check(
     return result
 
 
-def experience_coverage_check(
-    content: dict[str, Any], personal_info: dict[str, Any]
-) -> dict[str, Any]:
-    """Every catalogue experience `id` must appear in the generated content.
+def _item_label(item: dict[str, Any]) -> str:
+    return (
+        item.get("title")
+        or item.get("name")
+        or item.get("degree")
+        or item.get("company")
+        or ""
+    )
 
-    For ui_guidelines.selection.include_all_experience: some markets (and some
-    candidates) expect a complete work history, where silently dropping a job
-    reads as a gap. Older roles may be compressed to title/company/dates with
-    0-1 bullets — but never dropped.
+
+def coverage_check(
+    content: dict[str, Any], personal_info: dict[str, Any], sections: list[str]
+) -> dict[str, Any]:
+    """Every catalogue `id` in each of `sections` must appear in the content.
+
+    For ui_guidelines.selection.require_all_from (and the older
+    include_all_experience): some markets (and some candidates) expect a
+    complete history, where silently dropping an entry reads as a gap. Older
+    entries may be compressed to a heading with 0-1 bullets — but never dropped.
+
+    `sections` is a list of catalogue keys rather than a hardcoded "experience"
+    so a config can demand full coverage of, say, education or voluntary_work
+    too.
     """
-    catalogue = [
-        it for it in (personal_info.get("experience") or []) if isinstance(it, dict)
-    ]
-    included = {
-        it.get("id")
-        for it in (content.get("experience") or [])
-        if isinstance(it, dict)
-    }
-    missing = [
-        {"id": it.get("id", ""), "label": it.get("title") or it.get("company") or ""}
-        for it in catalogue
-        if it.get("id") and it.get("id") not in included
-    ]
-    result: dict[str, Any] = {
-        "ok": not missing,
-        "catalogue_experience": len(catalogue),
-        "included_experience": len(included),
-    }
-    if missing:
-        result["missing_ids"] = [m["id"] for m in missing]
+    per_section: dict[str, Any] = {}
+    missing_any = False
+    messages: list[str] = []
+
+    for section in sections:
+        catalogue = [
+            it for it in (personal_info.get(section) or []) if isinstance(it, dict)
+        ]
+        included = {
+            it.get("id")
+            for it in (content.get(section) or [])
+            if isinstance(it, dict)
+        }
+        missing = [
+            {"id": it.get("id", ""), "label": _item_label(it)}
+            for it in catalogue
+            if it.get("id") and it.get("id") not in included
+        ]
+        per_section[section] = {
+            "ok": not missing,
+            "catalogue_entries": len(catalogue),
+            "included_entries": len(included),
+        }
+        if missing:
+            missing_any = True
+            per_section[section]["missing_ids"] = [m["id"] for m in missing]
+            named = ", ".join(
+                m["id"] + (f" ({m['label']})" if m["label"] else "") for m in missing
+            )
+            messages.append(f"{section}: {named}")
+
+    result: dict[str, Any] = {"ok": not missing_any, "sections": per_section}
+    if missing_any:
+        result["missing_ids"] = [
+            i for s in per_section.values() for i in s.get("missing_ids", [])
+        ]
         result["message"] = (
-            "ui_guidelines.selection.include_all_experience is ON, so EVERY job "
-            "in the catalogue must appear on the resume. Missing: "
-            + ", ".join(f"{m['id']}" + (f" ({m['label']})" if m["label"] else "") for m in missing)
-            + ". Add them. An older or less relevant role may be compressed to "
-            "title/company/dates with 0-1 highlights, but it must not be dropped."
+            "ui_guidelines.selection requires FULL coverage of "
+            + ", ".join(sections)
+            + ", so every entry in the catalogue must appear on the resume. "
+            "Missing: "
+            + "; ".join(messages)
+            + ". Add them. An older or less relevant entry may be compressed to "
+            "its heading with 0-1 highlights, but it must not be dropped."
         )
     return result
 

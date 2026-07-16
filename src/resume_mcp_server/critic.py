@@ -42,15 +42,44 @@ def _strip_keys(node: Any) -> Any:
     return copy.deepcopy(node)
 
 
+def _english_list(items: list[str]) -> str:
+    """['a', 'b', 'c'] -> 'a, b, and c'."""
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    return f"{', '.join(items[:-1])}, and {items[-1]}"
+
+
+def rankable_sections(personal_info: dict[str, Any]) -> list[str]:
+    """Catalogue sections a recruiter can actually RANK, in catalogue order.
+
+    The rule is structural rather than a hardcoded list: a section qualifies when
+    it is a list of dicts carrying a stable `id`. That automatically covers any
+    section a user invents (and voluntary_work, which the old hardcoded list
+    silently never scored), while excluding `languages` and a flat `skills` list
+    — those have no ids and are not entries to cut or keep.
+    """
+    sections: list[str] = []
+    for key, value in personal_info.items():
+        if not isinstance(value, list) or not value:
+            continue
+        if all(isinstance(it, dict) and it.get("id") for it in value):
+            sections.append(key)
+    return sections
+
+
 # The catalogue block is emitted FIRST and IDENTICALLY by every sub-agent prompt
 # that embeds it (relevance review, resume critique, qualification check), so
 # the three calls share a byte-identical prefix and prompt caching can actually
 # hit. Persona and task-specific instructions come after. Do not vary this text
-# per caller — that silently destroys the shared prefix.
+# per caller — that silently destroys the shared prefix. (The section list below
+# is derived from the catalogue, which is the same object for all three, so the
+# prefix stays identical within a run.)
 _CATALOGUE_HEADER = """# The candidate catalogue
 Everything known to be true about this candidate, and the full pool of what they
 could put on a resume. It is intentionally larger than any single resume. Each
-item under experience, education, projects, competitions, and certifications has
+item under {sections} has
 a stable `id`. `narrative` fields are background context, not resume text. Treat
 this as the ONLY evidence about the candidate: if something is not supported
 here, it is not established.
@@ -62,7 +91,12 @@ def _catalogue_block(personal_info: dict[str, Any]) -> str:
     catalogue = json.dumps(
         _strip_keys(personal_info), separators=(",", ":"), ensure_ascii=False
     )
-    return f"{_CATALOGUE_HEADER}\n```json\n{catalogue}\n```"
+    sections = rankable_sections(personal_info)
+    header = _CATALOGUE_HEADER.format(
+        sections=_english_list(sections) or "each list section"
+    )
+    return f"{header}\n```json\n{catalogue}\n```"
+
 
 # Tough-but-fair persona, centralized so it is easy to tune. ``{company}`` is
 # filled per call; everything else is constant.
@@ -206,6 +240,17 @@ def build_relevance_review_prompt(
     with the other sub-agent prompts.
     """
     company_label = company or "the company"
+    # Derived from the catalogue, so a user who invents a section still gets it
+    # ranked and a user who has none of a default section gets no empty table.
+    sections = rankable_sections(personal_info)
+    section_names = _english_list([f"`{s}`" for s in sections]) or "every section"
+    tables = "\n\n".join(
+        f"## {s}\n"
+        "| id | score | must-include? | cut? | why |\n"
+        "|----|-------|---------------|------|-----|\n"
+        "| <id> | <0-5> | yes/no | yes/no | <one line> |"
+        for s in sections
+    )
     return f"""{_catalogue_block(personal_info)}
 
 {_persona(company)}
@@ -219,7 +264,7 @@ def build_relevance_review_prompt(
 
 # Your task
 Rank how relevant each catalogue item is to THIS job. For every item in
-`experience`, `education`, `projects`, `competitions`, and `certifications`:
+{section_names}:
 
 - Give a relevance score from 0 to 5 (5 = clearly belongs on this resume,
   0 = irrelevant, cut it).
@@ -243,18 +288,11 @@ omitted, then one markdown table per non-empty section:
 THEMES: <2-3 themes the employer most wants>
 MUST_INCLUDE: <comma-separated ids that would be a mistake to leave off>
 
-## experience
-| id | score | must-include? | cut? | why |
-|----|-------|---------------|------|-----|
-| <id> | <0-5> | yes/no | yes/no | <one line> |
-
-## education
-| id | score | must-include? | cut? | why |
-|----|-------|---------------|------|-----|
-...
-
-(repeat for projects, competitions, certifications that have items)
+{tables}
 ```
+
+Emit one row per item, and one table per section listed above — no more, no
+less.
 
 Be decisive with the scores — do not give everything a 3 or 4. The point is to
 help the candidate cut weak material and surface the must-haves, not to

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -77,6 +77,26 @@ class Certification(_Lax):
     url: str = ""
 
 
+class VoluntaryWork(_Lax):
+    id: str = ""
+    title: str = ""
+    organization: str = ""
+    location: str = ""
+    start_date: str = ""
+    end_date: str = ""
+    narrative: str = ""
+    highlights: list[Highlight] = Field(default_factory=list)
+
+
+class Language(_Lax):
+    """A spoken language. Deliberately has no `id`: it is not a rankable resume
+    entry, which is how critic.py tells it apart from the sections a relevance
+    review scores."""
+
+    language: str = ""
+    proficiency: str = ""
+
+
 class Skills(_Lax):
     """Structured, developer-centric skills: {languages, frameworks, tools, ...}.
 
@@ -105,6 +125,55 @@ class PersonalInfo(_Lax):
     projects: list[Project] = Field(default_factory=list)
     competitions: list[Competition] = Field(default_factory=list)
     certifications: list[Certification] = Field(default_factory=list)
+    voluntary_work: list[VoluntaryWork] = Field(default_factory=list)
+    languages: list[Language] = Field(default_factory=list)
+
+
+class SectionFields(_Lax):
+    """Which catalogue fields feed each slot of a rendered item.
+
+    Field names are looked up on the item; a list-valued field (e.g. `tech`) is
+    flattened, and empty/missing ones drop out. This is what lets a section the
+    template has never heard of render without a template edit.
+    """
+
+    # kind="entries": "\textbf{bold}<italic_sep>\textit{italic}" on the left,
+    # `right` on the right, an optional "<note_label>: <note>" line, then bullets.
+    bold: list[str] = Field(default_factory=list)
+    italic: list[str] = Field(default_factory=list)
+    italic_sep: str = ", "
+    # [] = no right-hand cell, ["date"] = one value, ["start", "end"] = a range
+    # rendered "start--end", collapsing when end is empty or equals start.
+    right: list[str] = Field(default_factory=list)
+    note: str = ""
+    note_label: str = ""
+    bullets: str = "highlights"
+    # kind="oneline": "\textbf{bold}<sep>rest (paren)".
+    sep: str = " --- "
+    rest: list[str] = Field(default_factory=list)
+    paren: str = ""
+
+
+class SectionBlock(_Lax):
+    """One catalogue source rendered inside a section. A section usually has a
+    single block; multiple blocks render under one heading, which is how the
+    default "Competitions and Projects" section merges two catalogue keys."""
+
+    source: str
+    kind: Literal["prose", "entries", "oneline", "skills"] = "entries"
+    fields: SectionFields = Field(default_factory=SectionFields)
+
+
+class SectionSpec(_Lax):
+    """One rendered resume section. The ORDER of these in UIGuidelines.sections
+    is the order they appear on the page."""
+
+    key: str
+    # None = fall back to ui.section_titles[key], then the English default in
+    # render.DEFAULT_SECTION_TITLES, then a title-cased key.
+    title: str | None = None
+    space_after: str = "-16pt"
+    blocks: list[SectionBlock] = Field(min_length=1)
 
 
 class UIGuidelines(_Lax):
@@ -121,6 +190,11 @@ class UIGuidelines(_Lax):
     # the English default in render.DEFAULT_SECTION_TITLES, so old configs keep
     # working. Set these to render a non-English resume.
     section_titles: dict[str, Any] = Field(default_factory=dict)
+    # Which sections exist, in render order, and what feeds each. None (the
+    # default) means "synthesize render.DEFAULT_SECTIONS", so a config predating
+    # this key keeps rendering exactly as before. An explicit [] is different: it
+    # means render no sections at all.
+    sections: list[SectionSpec] | None = None
     # Display strings for the labels INSIDE the skills section, keyed by the
     # skills sub-key (languages, frameworks, tools, ...). Falls back to
     # render.DEFAULT_SKILL_LABELS.
@@ -159,4 +233,8 @@ def validate_personal_info(data: Any) -> dict[str, Any]:
 
 
 def validate_ui_guidelines(data: Any) -> dict[str, Any]:
-    return UIGuidelines.model_validate(data).model_dump(mode="json")
+    # exclude_none so an absent `sections` (and an unset section `title`) stays
+    # absent rather than being written back into the user's config as `null` —
+    # which resolve_sections would then have to treat as "synthesize defaults"
+    # anyway, and which reads as a mistake in a hand-edited file.
+    return UIGuidelines.model_validate(data).model_dump(mode="json", exclude_none=True)

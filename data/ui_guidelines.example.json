@@ -18,6 +18,121 @@
     "certifications": "Certifications",
     "languages": "Languages"
   },
+  "sections": [
+    {
+      "key": "profile",
+      "space_after": "-2mm",
+      "blocks": [{ "source": "summary", "kind": "prose" }]
+    },
+    {
+      "key": "education",
+      "space_after": "-6mm",
+      "blocks": [
+        {
+          "source": "education",
+          "kind": "entries",
+          "fields": {
+            "bold": ["degree"],
+            "italic": ["institution", "location"],
+            "italic_sep": ", ",
+            "right": ["start_date", "end_date"],
+            "note": "gpa",
+            "note_label": "GPA",
+            "bullets": "highlights"
+          }
+        }
+      ]
+    },
+    {
+      "key": "experience",
+      "space_after": "-6mm",
+      "blocks": [
+        {
+          "source": "experience",
+          "kind": "entries",
+          "fields": {
+            "bold": ["title", "company"],
+            "right": ["start_date", "end_date"],
+            "bullets": "highlights"
+          }
+        }
+      ]
+    },
+    {
+      "key": "projects",
+      "blocks": [
+        {
+          "source": "competitions",
+          "kind": "entries",
+          "fields": {
+            "bold": ["name"],
+            "italic": ["placement"],
+            "italic_sep": " --- ",
+            "right": ["date"],
+            "bullets": "highlights"
+          }
+        },
+        {
+          "source": "projects",
+          "kind": "entries",
+          "fields": {
+            "bold": ["name"],
+            "italic": ["tech"],
+            "italic_sep": " --- ",
+            "right": [],
+            "bullets": "highlights"
+          }
+        }
+      ]
+    },
+    {
+      "key": "skills",
+      "blocks": [{ "source": "skills", "kind": "skills" }]
+    },
+    {
+      "key": "voluntary_work",
+      "blocks": [
+        {
+          "source": "voluntary_work",
+          "kind": "entries",
+          "fields": {
+            "bold": ["title", "organization"],
+            "right": ["start_date", "end_date"],
+            "bullets": "highlights"
+          }
+        }
+      ]
+    },
+    {
+      "key": "certifications",
+      "blocks": [
+        {
+          "source": "certifications",
+          "kind": "oneline",
+          "fields": {
+            "bold": ["name"],
+            "sep": " --- ",
+            "rest": ["issuer"],
+            "paren": "date"
+          }
+        }
+      ]
+    },
+    {
+      "key": "languages",
+      "blocks": [
+        {
+          "source": "languages",
+          "kind": "oneline",
+          "fields": {
+            "bold": ["language"],
+            "sep": ": ",
+            "rest": ["proficiency"]
+          }
+        }
+      ]
+    }
+  ],
   "skill_labels": {
     "languages": "Programming Languages",
     "frameworks": "Frameworks & Libraries",

@@ -89,7 +89,7 @@ def test_experience_coverage_flags_missing_ids():
         ]
     }
     content = {"experience": [{"id": "a"}]}
-    res = checks.experience_coverage_check(content, catalogue)
+    res = checks.coverage_check(content, catalogue, ["experience"])
     assert res["ok"] is False
     assert res["missing_ids"] == ["b", "c"]
     assert "Analyst" in res["message"]
@@ -98,14 +98,31 @@ def test_experience_coverage_flags_missing_ids():
 def test_experience_coverage_ok_when_all_present():
     catalogue = {"experience": [{"id": "a"}, {"id": "b"}]}
     content = {"experience": [{"id": "b"}, {"id": "a"}]}
-    res = checks.experience_coverage_check(content, catalogue)
+    res = checks.coverage_check(content, catalogue, ["experience"])
     assert res["ok"] is True
     assert "missing_ids" not in res
 
 
 def test_experience_coverage_ok_on_empty_catalogue():
-    res = checks.experience_coverage_check({"experience": []}, {})
+    res = checks.coverage_check({"experience": []}, {}, ["experience"])
     assert res["ok"] is True
+
+
+def test_coverage_check_spans_several_sections():
+    # The point of taking a list of sections: a config can demand full coverage
+    # of more than just experience.
+    catalogue = {
+        "experience": [{"id": "a", "title": "Dev"}],
+        "education": [{"id": "e1", "degree": "BSc"}, {"id": "e2", "degree": "MSc"}],
+    }
+    content = {"experience": [{"id": "a"}], "education": [{"id": "e1"}]}
+    res = checks.coverage_check(content, catalogue, ["experience", "education"])
+    assert res["ok"] is False
+    assert res["missing_ids"] == ["e2"]
+    assert res["sections"]["experience"]["ok"] is True
+    assert res["sections"]["education"]["ok"] is False
+    # The message must name the section, not just the id.
+    assert "education: e2 (MSc)" in res["message"]
 
 
 def test_find_banned_phrases_is_case_insensitive_and_reports_path():

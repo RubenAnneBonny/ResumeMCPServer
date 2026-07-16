@@ -1,0 +1,252 @@
+% =============================================================
+%  Resume template — rendered by Jinja2 + compiled by Tectonic
+%  All user content flows through the |tex filter (LaTeX escape).
+%  This file MUST contain only generic placeholders — no real names,
+%  no real schools, no real bullets. Review before every commit.
+% =============================================================
+\documentclass[a4paper,11pt]{article}
+\usepackage{latexsym}
+\usepackage{xcolor}
+\usepackage{float}
+\usepackage{ragged2e}
+\usepackage[empty]{fullpage}
+\usepackage{wrapfig}
+\usepackage{tabularx}
+\usepackage{titlesec}
+\usepackage{geometry}
+\usepackage{marvosym}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+% fontawesome5 omitted — crashes tectonic on Windows due to OTF font loading
+\usepackage{multicol}
+\usepackage{graphicx}
+\usepackage{cfr-lm}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\setlength{\multicolsep}{0pt}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+\geometry{left=1.4cm, top=0.8cm, right=1.2cm, bottom=1.0cm}
+\usepackage[most]{tcolorbox}
+\tcbset{
+    frame code={},
+    center title,
+    left=0pt,
+    right=0pt,
+    top=0pt,
+    bottom=0pt,
+    colback=gray!20,
+    colframe=white,
+    width=\dimexpr\textwidth\relax,
+    enlarge left by=-2mm,
+    boxsep=4pt,
+    arc=0pt,outer arc=0pt,
+}
+
+\urlstyle{same}
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting
+\titleformat{\section}{
+  \vspace{-4pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-7pt}]
+
+%-------------------------
+% Custom commands
+\newcommand{\resumeItem}[2]{
+  \item{
+    \textbf{#1}{\hspace{0.5mm}#2 \vspace{-0.5mm}}
+  }
+}
+
+\newcommand{\resumeSubheading}[4]{
+\vspace{0.5mm}\item
+    \begin{tabular*}{0.98\textwidth}[t]{l@{\extracolsep{\fill}}r}
+        \textbf{#1} & \textit{\footnotesize{#4}} \\
+        #3 &  \footnotesize{}\\
+    \end{tabular*}
+    \vspace{-2.4mm}
+}
+
+\newcommand{\resumeProject}[4]{
+\vspace{0.5mm}\item
+    \begin{tabular*}{0.98\textwidth}[t]{l@{\extracolsep{\fill}}r}
+        \textbf{#1} & \textit{\footnotesize{#3}} \\
+        #2 & \footnotesize{#4}
+    \end{tabular*}
+    \vspace{-2.4mm}
+}
+
+\renewcommand{\labelitemi}{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=*,labelsep=0mm]}
+\newcommand{\resumeItemListStart}{\begin{justify}\begin{itemize}[leftmargin=3ex, rightmargin=2ex, noitemsep,labelsep=1.2mm,itemsep=0mm]\small}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}\vspace{2mm}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\end{justify}\vspace{-2mm}}
+
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}%
+\newcolumntype{R}{>{\raggedleft\arraybackslash}X}%
+\newcolumntype{C}{>{\centering\arraybackslash}X}%
+
+%-------------------------------------------
+\begin{document}
+\fontfamily{cmr}\selectfont
+
+%----------HEADING-----------------
+\begin{center}
+    \parbox{\dimexpr\textwidth}{
+        \centering
+        \textbf{\Large Alex Lindqvist} \\[4pt]
+        \textit{2nd year B.Sc. in Engineering Physics} \\[8pt]
+        alex.lindqvist@example.com \,\textbar\,
+        \href{https://www.linkedin.com/in/alex-lindqvist-example/}{LinkedIn Profile}        \\[4pt]
+        +46 70-123 45 67
+    }
+\end{center}
+
+\section{\textbf{Profile}}
+Engineering Physics student at Chalmers with a strong background in competitive programming and applied mathematics. Silver medalist in the Swedish Olympiad in Informatics and finalist in the Baltic Olympiad in Informatics, with hands-on experience in C++, Python, and numerical methods. Experienced in developing simulation tools for physics research.
+\vspace{-2mm}
+
+\section{\textbf{Education}}
+\begin{itemize}[leftmargin=0.05in, label={}]
+\small{
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{Engineering Physics, 2nd Year}, \textit{Chalmers University of Technology, Gothenburg, Sweden} & \textit{2024--Present}
+        \end{tabular*}\\
+        GPA: 4.5/5.0
+    }
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{Natural Science and Technology}, \textit{NTI Gymnasium, Gothenburg, Sweden} & \textit{2021--2024}
+        \end{tabular*}\\
+        GPA: 21.8/22.5
+    }
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{Mathematics 1}, \textit{University of Gothenburg, Gothenburg, Sweden} & \textit{2023--2024}
+        \end{tabular*}\\
+        \resumeItemListStart
+            \item Completed 30 ECTS of university-level mathematics during upper secondary school, including Linear Algebra, Single Variable Calculus, Multivariable Calculus, and Discrete Mathematics. Achieved top grades (A).
+        \resumeItemListEnd
+    }
+}
+\end{itemize}
+\vspace{-6mm}
+
+\section{\textbf{Experience}}
+\begin{itemize}[leftmargin=0.05in, label={}]
+\small{
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{Laboratory Assistant, Physics Department, Chalmers University of Technology} & \textit{2025--Present}
+        \end{tabular*}\\
+        \resumeItemListStart
+            \item Assisted researchers with data collection and numerical analysis for condensed matter physics experiments.
+        \resumeItemListEnd
+    }
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{Software Engineering Intern, Example Analytics AB} & \textit{2024-06--2024-08}
+        \end{tabular*}\\
+        \resumeItemListStart
+            \item Built an internal dashboard for monitoring batch job failures, cutting the team's triage time for a failed run from roughly 30 minutes to under 5.
+            \item Added regression tests to a data ingestion service, raising line coverage from 40\% to 75\%.
+        \resumeItemListEnd
+    }
+}
+\end{itemize}
+\vspace{-6mm}
+
+\section{\textbf{Competitions and Projects}}
+\begin{itemize}[leftmargin=0.05in, label={}]
+\small{
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{Silver Medal: Baltic Olympiad in Informatics} --- \textit{Silver Medal} & \textit{2024}
+        \end{tabular*}\\
+        \resumeItemListStart
+            \item Competed against top students from Baltic and Nordic countries, solving advanced algorithmic problems under strict time constraints.
+        \resumeItemListEnd
+    }
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{Place 71 / 145: NWERC, ICPC Regional Contest} --- \textit{71st of 145 teams} & \textit{2025}
+        \end{tabular*}\\
+        \resumeItemListStart
+            \item Participated in a 5-hour team programming contest in Hamburg. As second-year students, ranked 3rd out of 5 Chalmers teams.
+        \resumeItemListEnd
+    }
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{Participant: Ericsson AI Hackathon} & \textit{2025}
+        \end{tabular*}\\
+        \resumeItemListStart
+            \item Collaborated in a team of five to develop a reinforcement-learning agent for dynamic 5G network resource allocation, reducing simulated drop rates by 18\%.
+        \resumeItemListEnd
+    }
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{Place 8 / 40: Swedish Olympiad in Informatics} --- \textit{8th of 40} & \textit{2023--2024}
+        \end{tabular*}\\
+        \resumeItemListStart
+            \item Ranked among the top fifth nationally, demonstrating strong problem-solving, algorithmic reasoning, and independent coding skills.
+        \resumeItemListEnd
+    }
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{Codeforces Rating: 1841} & \textit{2024--Present}
+        \end{tabular*}\\
+        \resumeItemListStart
+            \item Maintaining a high competitive programming rating through regular international contests, consistently solving challenging algorithmic problems in C++ and Python.
+        \resumeItemListEnd
+    }
+}
+\end{itemize}
+\vspace{-16pt}
+
+\section{\textbf{Technical Skills}}
+\begin{itemize}[leftmargin=0.05in, label={}]
+\small{
+    \item{\textbf{Programming Languages}: Python, C++, Julia, SQL}
+    \item{\textbf{Frameworks \& Libraries}: PyTorch, NumPy, Matplotlib, SciPy}
+    \item{\textbf{Developer Tools}: Git, Visual Studio Code, Linux, LaTeX, MATLAB}
+    \item{\textbf{Data Structures}: Segment Trees, Fenwick Trees, Disjoint Set Union (DSU), Heaps, Hash Tables}
+    \item{\textbf{Algorithms}: Dijkstra's Algorithm, Dynamic Programming, Network Flow, Graph Traversals, Greedy Algorithms}
+}
+\end{itemize}
+\vspace{-16pt}
+
+\section{\textbf{Voluntary Work and Engagements}}
+\begin{itemize}[leftmargin=0.05in, label={}]
+\small{
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{President, Competitive Programming Club, Chalmers University of Technology} & \textit{2024--Present}
+        \end{tabular*}\\
+        \resumeItemListStart
+            \item Organised weekly training sessions and coordinated participation in regional and national contests. Grew club membership from 12 to 35 active members.
+        \resumeItemListEnd
+    }
+}
+\end{itemize}
+\vspace{-16pt}
+
+\section{\textbf{Languages}}
+\begin{itemize}[leftmargin=0.05in, label={}]
+\small{
+    \item{\textbf{Swedish}: Native}
+    \item{\textbf{English}: Fluent}
+    \item{\textbf{German}: Intermediate}
+}
+\end{itemize}
+\vspace{-16pt}
+
+\end{document}

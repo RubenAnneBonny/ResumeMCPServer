@@ -129,7 +129,7 @@ Spawn the server directly via stdio using the official `@modelcontextprotocol/sd
 | `get_resume_schema()` | Expected shape for `generate_resume`'s `content`, plus the mandatory tailoring guidance. |
 | `get_relevance_review_prompt(company, job_description)` | Build the pre-generation ranking prompt. Run in a fresh sub-agent. |
 | `submit_relevance_review(company, job_description, results)` | Register the ranking result. **Unlocks `generate_resume`.** |
-| `generate_resume(name, content, company, job_description, compile_pdf=True)` | Render `.tex`, compile `.pdf`. Returns paths, `page_check`, `ats_check`, and `selection_check` when `include_all_experience` is on. Gated on a relevance review. |
+| `generate_resume(name, content, company, job_description, compile_pdf=True)` | Render `.tex`, compile `.pdf`. Returns paths, `page_check`, `ats_check`, and `selection_check` when `selection.require_all_from` is set. Gated on a relevance review. |
 | `get_resume_critique_prompt(name, company, job_description)` | Build the post-generation critique prompt. Run in a fresh sub-agent. |
 | `submit_resume_critique(name, company, job_description, findings)` | Register the critique. **Unlocks `finalize_resume`.** |
 | `get_final_review_prompt(name, company, job_description)` | **Preferred** one-shot final pass: skim + red flags + proofread in a single sub-agent round trip. |
@@ -197,6 +197,51 @@ The template ships English headers, but nothing is hardcoded: `section_titles` m
 
 > `projects` is the header for the **combined** competitions+projects section. `skill_labels` only applies to the structured skills shape (see below).
 
+### Which sections exist, and in what order: `sections`
+
+`section_titles` only renames sections. To change **which sections exist, their order, or what feeds them**, set `sections` — an ordered list. Omit the key entirely and you get the default eight (profile, education, experience, competitions+projects, skills, voluntary work, certifications, languages), exactly as before. An explicit `[]` means *render no sections*.
+
+```jsonc
+"sections": [
+  { "key": "experience",                 // moved above education
+    "space_after": "-6mm",               // default: "-16pt"
+    "blocks": [
+      { "source": "experience",          // the personal_info.json key
+        "kind": "entries",
+        "fields": {
+          "bold":    ["title", "company"],   // joined ", ", empties dropped
+          "right":   ["start_date", "end_date"],  // rendered "2024--2025"
+          "bullets": "highlights"
+        } }
+    ] },
+  { "key": "education", "blocks": [ /* ... */ ] }
+]
+```
+
+A section's `title` comes from the first of: `sections[].title`, `section_titles[key]`, the English default, or the title-cased key. So if all you want is translated headers, keep editing `section_titles` and ignore this.
+
+**Four `kind`s** cover every layout:
+
+| `kind` | Renders | Used by |
+|---|---|---|
+| `prose` | A bare paragraph | profile / summary |
+| `entries` | Bold+italic heading, right-hand date or range, optional note line, then bullets | experience, education, projects, competitions, voluntary work |
+| `oneline` | One `\item` per entry: **bold**`sep`rest `(paren)` | certifications, languages |
+| `skills` | One labelled line per sub-list (labels from `skill_labels`, falling back to the title-cased key), or a flat comma-joined line | skills |
+
+`fields` names catalogue fields rather than hardcoding them, which is what lets you invent a section the template has never seen — no template edit, no code change:
+
+```jsonc
+{ "key": "publications", "title": "Publications",
+  "blocks": [ { "source": "publications", "kind": "entries",
+    "fields": { "bold": ["title"], "italic": ["venue"], "italic_sep": " --- ",
+                "right": ["year"], "bullets": "notes" } } ] }
+```
+
+A section can take **several blocks** under one heading — that is how the default "Competitions and Projects" merges two catalogue keys. Blocks whose source is empty are dropped automatically, and a section left with no blocks doesn't render at all.
+
+`entries` field slots: `bold` / `italic` (lists of field names joined `", "`; a list-valued field like `tech` is flattened), `italic_sep` (between the bold and italic parts), `right` (`[]`, `["date"]`, or `["start", "end"]` — a range that collapses when the end is missing or equal), `note` + `note_label` (the `GPA: 4.8/5.0` line), and `bullets` (the field holding `{text}` objects). `oneline` uses `bold`, `sep`, `rest`, and `paren`.
+
 ### Page window: `max_pages` and `target_pages`
 
 `page.max_pages` (default 1) is a hard **ceiling**. `page.target_pages` is an optional **floor** — set it when a short resume is a problem (e.g. a Swedish-market two-pager that comes in at one page is wasting the space). Both are enforced by the deterministic `page_check` in every `generate_resume` result, and both gate `finalize_resume`.
@@ -207,13 +252,15 @@ The template ships English headers, but nothing is hardcoded: `section_titles` m
 
 `target_pages` must be `<= max_pages` (a floor above the ceiling is unsatisfiable — `update_ui_guidelines` rejects it). Underfill tells the agent to **add the next-highest-relevance entries or expand highlights**, per the relevance review — never to pad with fluff or stretch the margins.
 
-### Selection policy: `include_all_experience`
+### Selection policy: `require_all_from`
 
 ```json
-"selection": { "include_all_experience": false }
+"selection": { "require_all_from": ["experience"] }
 ```
 
-Default `false` — the agent picks the subset of jobs relevant to the JD. Set `true` when every job in the catalogue must appear (some markets read a missing job as a gap): `generate_resume` then returns a `selection_check` naming any catalogue experience `id` that isn't on the page, and `finalize_resume` refuses until it's clean. Older roles may be compressed to title/company/dates with 0–1 bullets — but never dropped.
+Default empty — the agent picks the subset of each section relevant to the JD. List a catalogue section when **every** entry in it must appear (some markets read a missing job as a gap): `generate_resume` then returns a `selection_check` naming any `id` that isn't on the page, and `finalize_resume` refuses until it's clean. Older entries may be compressed to a heading with 0–1 bullets — but never dropped.
+
+The older boolean `"include_all_experience": true` still works and means exactly `["require_all_from": ["experience"]]`.
 
 ### Banned phrases
 

@@ -1,0 +1,237 @@
+% =============================================================
+%  Resume template — rendered by Jinja2 + compiled by Tectonic
+%  All user content flows through the |tex filter (LaTeX escape).
+%  This file MUST contain only generic placeholders — no real names,
+%  no real schools, no real bullets. Review before every commit.
+% =============================================================
+\documentclass[a4paper,11pt]{article}
+\usepackage{latexsym}
+\usepackage{xcolor}
+\usepackage{float}
+\usepackage{ragged2e}
+\usepackage[empty]{fullpage}
+\usepackage{wrapfig}
+\usepackage{tabularx}
+\usepackage{titlesec}
+\usepackage{geometry}
+\usepackage{marvosym}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+% fontawesome5 omitted — crashes tectonic on Windows due to OTF font loading
+\usepackage{multicol}
+\usepackage{graphicx}
+\usepackage{cfr-lm}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\setlength{\multicolsep}{0pt}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+\geometry{left=1.4cm, top=0.8cm, right=1.2cm, bottom=1.0cm}
+\usepackage[most]{tcolorbox}
+\tcbset{
+    frame code={},
+    center title,
+    left=0pt,
+    right=0pt,
+    top=0pt,
+    bottom=0pt,
+    colback=gray!20,
+    colframe=white,
+    width=\dimexpr\textwidth\relax,
+    enlarge left by=-2mm,
+    boxsep=4pt,
+    arc=0pt,outer arc=0pt,
+}
+
+\urlstyle{same}
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting
+\titleformat{\section}{
+  \vspace{-4pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-7pt}]
+
+%-------------------------
+% Custom commands
+\newcommand{\resumeItem}[2]{
+  \item{
+    \textbf{#1}{\hspace{0.5mm}#2 \vspace{-0.5mm}}
+  }
+}
+
+\newcommand{\resumeSubheading}[4]{
+\vspace{0.5mm}\item
+    \begin{tabular*}{0.98\textwidth}[t]{l@{\extracolsep{\fill}}r}
+        \textbf{#1} & \textit{\footnotesize{#4}} \\
+        #3 &  \footnotesize{}\\
+    \end{tabular*}
+    \vspace{-2.4mm}
+}
+
+\newcommand{\resumeProject}[4]{
+\vspace{0.5mm}\item
+    \begin{tabular*}{0.98\textwidth}[t]{l@{\extracolsep{\fill}}r}
+        \textbf{#1} & \textit{\footnotesize{#3}} \\
+        #2 & \footnotesize{#4}
+    \end{tabular*}
+    \vspace{-2.4mm}
+}
+
+\renewcommand{\labelitemi}{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=*,labelsep=0mm]}
+\newcommand{\resumeItemListStart}{\begin{justify}\begin{itemize}[leftmargin=3ex, rightmargin=2ex, noitemsep,labelsep=1.2mm,itemsep=0mm]\small}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}\vspace{2mm}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\end{justify}\vspace{-2mm}}
+
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}%
+\newcolumntype{R}{>{\raggedleft\arraybackslash}X}%
+\newcolumntype{C}{>{\centering\arraybackslash}X}%
+
+%-------------------------------------------
+\begin{document}
+\fontfamily{cmr}\selectfont
+
+%----------HEADING-----------------
+\begin{center}
+    \parbox{\dimexpr\textwidth}{
+        \centering
+        \textbf{\Large Jordan Fixture} \\[4pt]
+        \textit{Software Engineer} \\[8pt]
+        jordan@example.com \,\textbar\,
+        \href{https://example.com/gh}{github.com/jordan} \,\textbar\,         \href{https://example.com/s}{Site}        \\[4pt]
+        +46 70 000 00 00
+    }
+\end{center}
+
+\section{\textbf{Profile}}
+Engineer with 100\% focus on throughput \& latency, using C\_++ and R\&D methods.
+\vspace{-2mm}
+
+\section{\textbf{Education}}
+\begin{itemize}[leftmargin=0.05in, label={}]
+\small{
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{MSc Engineering Mathematics}, \textit{Example University, Stockholm} & \textit{2022--2027}
+        \end{tabular*}\\
+        GPA: 4.8/5.0
+        \resumeItemListStart
+            \item Coursework in optimisation \& numerical analysis.
+        \resumeItemListEnd
+    }
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{Exchange Semester}, \textit{Другой Институт} & \textit{2025}
+        \end{tabular*}\\
+    }
+}
+\end{itemize}
+\vspace{-6mm}
+
+\section{\textbf{Experience}}
+\begin{itemize}[leftmargin=0.05in, label={}]
+\small{
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{Quant Intern, Example Capital} & \textit{2025-06--2025-08}
+        \end{tabular*}\\
+        \resumeItemListStart
+            \item Cut backtest runtime 40\% by vectorising the pricing loop.
+            \item Shipped a risk report used daily by 12 traders.
+        \resumeItemListEnd
+    }
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{Teaching Assistant, Example University} & \textit{2024}
+        \end{tabular*}\\
+    }
+}
+\end{itemize}
+\vspace{-6mm}
+
+\section{\textbf{Competitions and Projects}}
+\begin{itemize}[leftmargin=0.05in, label={}]
+\small{
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{ICPC Nordic} --- \textit{3rd place} & \textit{2025}
+        \end{tabular*}\\
+        \resumeItemListStart
+            \item Solved 9 of 11 problems.
+        \resumeItemListEnd
+    }
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{Example Open} & \textit{2024}
+        \end{tabular*}\\
+    }
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{Sparse Solver} --- \textit{Rust, LAPACK} &
+        \end{tabular*}\\
+        \resumeItemListStart
+            \item Implemented a conjugate-gradient solver from scratch.
+        \resumeItemListEnd
+    }
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{Plain Project} &
+        \end{tabular*}\\
+    }
+}
+\end{itemize}
+\vspace{-16pt}
+
+\section{\textbf{Technical Skills}}
+\begin{itemize}[leftmargin=0.05in, label={}]
+\small{
+    \item{\textbf{Programming Languages}: Python, C++, Rust}
+    \item{\textbf{Frameworks \& Libraries}: NumPy, PyTorch}
+    \item{\textbf{Developer Tools}: Git, Docker}
+    \item{\textbf{Data Structures}: Segment trees}
+    \item{\textbf{Algorithms}: Dynamic programming}
+}
+\end{itemize}
+\vspace{-16pt}
+
+\section{\textbf{Voluntary Work and Engagements}}
+\begin{itemize}[leftmargin=0.05in, label={}]
+\small{
+    \item{
+        \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+        \textbf{Mentor, Example Society} & \textit{2023--2024}
+        \end{tabular*}\\
+        \resumeItemListStart
+            \item Mentored 5 first-year students.
+        \resumeItemListEnd
+    }
+}
+\end{itemize}
+\vspace{-16pt}
+
+\section{\textbf{Certifications}}
+\begin{itemize}[leftmargin=0.05in, label={}]
+\small{
+    \item{\textbf{AWS Solutions Architect} --- Amazon Web Services (2025)}
+    \item{\textbf{Bare Certificate}}
+}
+\end{itemize}
+\vspace{-16pt}
+
+\section{\textbf{Languages}}
+\begin{itemize}[leftmargin=0.05in, label={}]
+\small{
+    \item{\textbf{Swedish}: Native}
+    \item{\textbf{English}: Fluent}
+}
+\end{itemize}
+\vspace{-16pt}
+
+\end{document}

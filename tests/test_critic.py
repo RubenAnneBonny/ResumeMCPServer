@@ -10,11 +10,12 @@ from __future__ import annotations
 import json
 
 from resume_mcp_server.critic import (
-    _CATALOGUE_HEADER,
+    _catalogue_block,
     build_final_review_prompt,
     build_qualification_check_prompt,
     build_relevance_review_prompt,
     build_resume_critique_prompt,
+    rankable_sections,
 )
 
 CATALOGUE = {
@@ -74,10 +75,13 @@ def test_catalogue_json_is_compact():
 
 def test_every_catalogue_prompt_starts_with_the_identical_block():
     # The point of the ordering: a byte-identical prefix across sub-agent calls
-    # is what lets prompt caching hit. Persona/task come after.
+    # is what lets prompt caching hit. Persona/task come after. The header names
+    # the catalogue's sections, so it is derived per catalogue — but must still
+    # come out identical for all three prompts in a run.
+    block = _catalogue_block(CATALOGUE)
     prompts = _prompts()
     for prompt in prompts:
-        assert prompt.startswith(_CATALOGUE_HEADER)
+        assert prompt.startswith(block)
     prefix = prompts[0].split("```", 2)[:2]
     for prompt in prompts[1:]:
         assert prompt.split("```", 2)[:2] == prefix

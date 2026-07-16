@@ -6,9 +6,10 @@ import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args, get_origin
 
 from mcp.server.fastmcp import FastMCP
+from pydantic import BaseModel
 
 from resume_mcp_server import checks, paths, state
 from resume_mcp_server.critic import (
@@ -23,28 +24,39 @@ from resume_mcp_server.critic import (
 )
 from resume_mcp_server.jobs import fetch_ad, search_jobs
 from resume_mcp_server.latex import compile_tex, tectonic_available
-from resume_mcp_server.render import render_resume
+from resume_mcp_server.render import render_resume, resolve_ui
 from resume_mcp_server.schemas import (
-    Certification,
-    Competition,
-    Education,
-    Experience,
     PersonalInfo,
-    Project,
     validate_personal_info,
     validate_ui_guidelines,
 )
 
+
+def _section_item_models() -> dict[str, type[BaseModel]]:
+    """Catalogue section -> the model for ONE of its items, read straight off
+    PersonalInfo's list fields.
+
+    Derived rather than restated so a section added to the schema is covered
+    automatically — the hardcoded copy of this list silently omitted
+    voluntary_work and languages for as long as they existed.
+    """
+    models: dict[str, type[BaseModel]] = {}
+    for name, field in PersonalInfo.model_fields.items():
+        # Only `list[SomeModel]` fields are entry sections. This deliberately
+        # skips `contact` (not a list) and `skills` (a union whose model
+        # describes the whole section, not one item).
+        if get_origin(field.annotation) is not list:
+            continue
+        args = get_args(field.annotation)
+        if len(args) == 1 and isinstance(args[0], type) and issubclass(args[0], BaseModel):
+            models[name] = args[0]
+    return models
+
+
 # Sections whose items have a known schema, used to show the interviewer the
 # exact shape to fill. Extra/free-form sections (schema is lax) fall back to
 # "mirror the sibling entries".
-_SECTION_ITEM_MODELS = {
-    "experience": Experience,
-    "education": Education,
-    "projects": Project,
-    "competitions": Competition,
-    "certifications": Certification,
-}
+_SECTION_ITEM_MODELS = _section_item_models()
 
 mcp = FastMCP("resume")
 
@@ -134,13 +146,25 @@ def _target_pages(ui: dict[str, Any]) -> int | None:
         return None
 
 
-def _include_all_experience(ui: dict[str, Any]) -> bool:
-    """ui_guidelines.selection.include_all_experience (default False = today's
-    behavior, where the agent selects the relevant subset)."""
+def _coverage_sections(ui: dict[str, Any]) -> list[str]:
+    """Catalogue sections that must appear on the resume IN FULL.
+
+    Reads ui_guidelines.selection.require_all_from (a list of catalogue keys).
+    The older boolean selection.include_all_experience is still honored as sugar
+    for ["experience"]. Empty list (the default) = today's behavior, where the
+    agent selects the relevant subset of every section.
+    """
     selection = ui.get("selection") if isinstance(ui, dict) else None
-    if isinstance(selection, dict):
-        return bool(selection.get("include_all_experience", False))
-    return False
+    if not isinstance(selection, dict):
+        return []
+    raw = selection.get("require_all_from")
+    if isinstance(raw, list):
+        sections = [s for s in raw if isinstance(s, str) and s.strip()]
+        if sections:
+            return sections
+    if selection.get("include_all_experience", False):
+        return ["experience"]
+    return []
 
 
 def _banned_phrases(ui: dict[str, Any]) -> list[str]:
@@ -293,11 +317,30 @@ def get_ui_guidelines() -> dict[str, Any]:
     """Return the UI / style guidelines (data/ui_guidelines.json).
 
     These are knobs the LaTeX template reads: fonts, accent color, margins,
-    section heading style, spacing, voice (person/tense). Pass these into
-    generate_resume so the rendered PDF matches the configured style.
+    section heading style, spacing, voice (person/tense), and `sections` — which
+    sections exist, in what order, titled how, fed by which catalogue keys.
+
+    The file is returned as written, plus a `resolved_sections` view showing the
+    spec that will ACTUALLY render: titles filled in and, when the config has no
+    `sections` key, the synthesized defaults. Read that to know what the resume
+    will contain; `sections` may legitimately be absent from the raw file.
     """
     _bootstrap_ui_guidelines()
-    return _read_json(paths.UI_GUIDELINES_PATH)
+    ui = _read_json(paths.UI_GUIDELINES_PATH)
+    _bootstrap_personal_info()
+    catalogue = _read_json(paths.PERSONAL_INFO_PATH)
+    resolved = resolve_ui(ui, catalogue)
+    return {
+        **ui,
+        "resolved_sections": [
+            {
+                "key": s["key"],
+                "title": s["title"],
+                "sources": [b["source"] for b in s["blocks"]],
+            }
+            for s in resolved["sections"]
+        ],
+    }
 
 
 @mcp.tool()
@@ -474,10 +517,13 @@ def delete_entry(section: str, entry_id: str) -> dict[str, Any]:
 def get_resume_schema() -> dict[str, Any]:
     """Return the expected shape of the `content` argument for generate_resume.
 
-    Returns a dict with two keys:
+    Returns a dict with three keys:
       - "schema": JSON Schema describing the structured content the template
-        consumes (header info, summary, experience, education, projects,
-        competitions, skills, certifications).
+        consumes (header info, summary, and every catalogue section).
+      - "sections": the sections that will actually RENDER, in page order, each
+        with the catalogue keys feeding it. This comes from
+        ui_guidelines.sections, so it differs per user — do not assume the
+        default set.
       - "guidance": notes on tailoring — how to pick items per section, how to
         rewrite bullets to match ui_guidelines.voice, and the convention that
         `narrative` fields in personal_info are agent context only and must
@@ -487,6 +533,31 @@ def get_resume_schema() -> dict[str, Any]:
     expects.
     """
     schema = PersonalInfo.model_json_schema()
+    _bootstrap_personal_info()
+    _bootstrap_ui_guidelines()
+    catalogue = _read_json(paths.PERSONAL_INFO_PATH)
+    resolved = resolve_ui(_read_json(paths.UI_GUIDELINES_PATH), catalogue)
+    sections = [
+        {
+            "key": s["key"],
+            "title": s["title"],
+            "sources": [b["source"] for b in s["blocks"]],
+        }
+        for s in resolved["sections"]
+    ]
+    # Derived, not restated: the section list is per-user config now, so a
+    # hardcoded sentence here would be wrong for anyone who reordered or
+    # invented one. Only entry-bearing sources are listed — "pick the items per
+    # section" is meaningless for the prose summary or the skills mapping. Order
+    # is page order, deduped.
+    selectable = ", ".join(
+        dict.fromkeys(
+            b["source"]
+            for s in resolved["sections"]
+            for b in s["blocks"]
+            if b["kind"] in ("entries", "oneline")
+        )
+    )
     guidance = (
         "MANDATORY critical tailoring loop — do NOT skip the recruiter reviews. "
         "They exist so the resume is sharpened by an adversarial recruiter, not "
@@ -503,8 +574,8 @@ def get_resume_schema() -> dict[str, Any]:
         "labels, one-liners), then pull full detail for the entries you want "
         "with get_entries(ids). Reserve get_personal_info() for when you truly "
         "need everything. The index is the catalogue, not the resume.\n"
-        "3) Using the rankings, pick the items most relevant to the JD per section "
-        "(experience, education, projects, competitions, certifications). The agent "
+        "3) Using the rankings, pick the items most relevant to the JD per section. "
+        f"This config renders these sections, in order: {selectable}. The agent "
         "decides counts — typical output is e.g. 2 of 3 jobs, 4 of 4 education "
         "entries, 5 of 8 projects, 4 of 6 competitions.\n"
         "4) For each selected item, pick the 2-4 highlights most relevant to the "
@@ -525,7 +596,7 @@ def get_resume_schema() -> dict[str, Any]:
         "issues, and call generate_resume again. Repeat 7-8 until 'Unsupported "
         "claims' and 'Wrongly omitted' are both empty and 'Cut or trim' is clean."
     )
-    return {"schema": schema, "guidance": guidance}
+    return {"schema": schema, "sections": sections, "guidance": guidance}
 
 
 @mcp.tool()
@@ -691,9 +762,10 @@ def generate_resume(
     }
 
     # Content-level check — no PDF needed, so it runs even with compile_pdf=False.
-    if _include_all_experience(ui):
-        result["selection_check"] = checks.experience_coverage_check(
-            content, _read_json(paths.PERSONAL_INFO_PATH)
+    coverage_sections = _coverage_sections(ui)
+    if coverage_sections:
+        result["selection_check"] = checks.coverage_check(
+            content, _read_json(paths.PERSONAL_INFO_PATH), coverage_sections
         )
 
     if compile_pdf:
@@ -952,22 +1024,24 @@ def finalize_resume(
         "pdf_path": str(pdf_path) if pdf_path.exists() else None,
     }
 
-    # Experience coverage can't be recomputed here (the .tex has no ids), so
+    # Section coverage can't be recomputed here (the .tex has no ids), so
     # consult what generate_resume recorded for this resume.
-    if _include_all_experience(ui):
+    coverage_sections = _coverage_sections(ui)
+    if coverage_sections:
         last = state.last_generation(safe, company, job_description)
         sc = (last or {}).get("selection_check")
         if sc is None:
             result["note"] = (
-                "selection.include_all_experience is ON but this resume has no "
-                "recorded generate_resume check (generated before the flag was "
-                "set?). Coverage was NOT verified — re-run generate_resume to "
-                "check it."
+                "selection requires full coverage of "
+                + ", ".join(coverage_sections)
+                + " but this resume has no recorded generate_resume check "
+                "(generated before the flag was set?). Coverage was NOT "
+                "verified — re-run generate_resume to check it."
             )
         elif not sc.get("ok", True):
             raise ValueError(
                 "finalize_resume is blocked: "
-                + sc.get("message", "not every catalogue job is on the resume")
+                + sc.get("message", "not every catalogue entry is on the resume")
             )
 
     return result

@@ -26,6 +26,20 @@ def _ui_guidelines() -> dict:
         return {}
 
 
+def _coverage_sections(ui: dict) -> list:
+    """Mirror of server._coverage_sections. Duplicated rather than imported
+    because this hook runs as a bare script, outside the package."""
+    selection = ui.get("selection") or {}
+    raw = selection.get("require_all_from")
+    if isinstance(raw, list):
+        sections = [s for s in raw if isinstance(s, str) and s.strip()]
+        if sections:
+            return sections
+    if selection.get("include_all_experience"):
+        return ["experience"]
+    return []
+
+
 def _build_reminder() -> str:
     ui = _ui_guidelines()
     voice = ui.get("voice", {})
@@ -54,12 +68,14 @@ def _build_reminder() -> str:
         )
 
     extra = ""
-    if (ui.get("selection") or {}).get("include_all_experience"):
+    coverage = _coverage_sections(ui)
+    if coverage:
         extra += (
-            "3) COVERAGE: selection.include_all_experience is ON — EVERY job in "
-            "the catalogue must appear. Older roles may be compressed to "
-            "title/company/dates with 0-1 bullets, but never dropped. Check the "
-            "selection_check in the generate_resume result.\n"
+            "3) COVERAGE: selection requires EVERY entry from "
+            + ", ".join(coverage)
+            + " to appear. Older entries may be compressed to their heading with "
+            "0-1 bullets, but never dropped. Check the selection_check in the "
+            "generate_resume result.\n"
         )
     banned = (voice or {}).get("banned_phrases") or []
     if banned:

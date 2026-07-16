@@ -128,6 +128,86 @@ def test_include_all_experience_reports_and_blocks_finalize(isolated):
     assert server.finalize_resume("r", COMPANY, JD)["finalized"] is True
 
 
+def test_require_all_from_covers_more_than_experience(isolated):
+    # The generalisation: coverage is no longer hardwired to `experience`.
+    _write(
+        isolated / "data" / "personal_info.json",
+        {
+            "name": "Ada",
+            "experience": [{"id": "job-a", "title": "Dev"}],
+            "education": [{"id": "edu-a", "degree": "BSc"}, {"id": "edu-b", "degree": "MSc"}],
+        },
+    )
+    _write(
+        isolated / "data" / "ui_guidelines.json",
+        {**UI, "selection": {"require_all_from": ["experience", "education"]}},
+    )
+    server.submit_relevance_review(COMPANY, JD, "scores...")
+
+    content = {
+        "name": "Ada",
+        "experience": [{"id": "job-a", "title": "Dev"}],
+        "education": [{"id": "edu-a", "degree": "BSc"}],
+    }
+    gen = server.generate_resume("r", content, COMPANY, JD, compile_pdf=False)
+    assert gen["selection_check"]["ok"] is False
+    assert gen["selection_check"]["missing_ids"] == ["edu-b"]
+
+    server.submit_resume_critique("r", COMPANY, JD, "READY")
+    with pytest.raises(ValueError, match="edu-b"):
+        server.finalize_resume("r", COMPANY, JD)
+
+    content["education"].append({"id": "edu-b", "degree": "MSc"})
+    gen = server.generate_resume("r", content, COMPANY, JD, compile_pdf=False)
+    assert gen["selection_check"]["ok"] is True
+    assert server.finalize_resume("r", COMPANY, JD)["finalized"] is True
+
+
+def test_get_ui_guidelines_exposes_resolved_sections_for_a_config_without_any(isolated):
+    # The raw file has no `sections` key; the agent must still be able to see
+    # what will actually render.
+    ui = server.get_ui_guidelines()
+    assert "sections" not in {k: v for k, v in ui.items() if k != "resolved_sections"}
+    resolved = ui["resolved_sections"]
+    # The isolated catalogue only has projects, so only that section survives.
+    assert [s["key"] for s in resolved] == ["projects"]
+    assert resolved[0]["title"] == "Competitions and Projects"
+    assert resolved[0]["sources"] == ["projects"]
+
+
+def test_get_ui_guidelines_reflects_a_custom_sections_list(isolated):
+    _write(
+        isolated / "data" / "ui_guidelines.json",
+        {
+            **UI,
+            "sections": [
+                {
+                    "key": "projects",
+                    "title": "Selected Work",
+                    "blocks": [
+                        {"source": "projects", "kind": "entries", "fields": {"bold": ["name"]}}
+                    ],
+                }
+            ],
+        },
+    )
+    resolved = server.get_ui_guidelines()["resolved_sections"]
+    assert resolved == [
+        {"key": "projects", "title": "Selected Work", "sources": ["projects"]}
+    ]
+
+
+def test_get_resume_schema_reports_sections_and_the_full_catalogue_shape(isolated):
+    schema = server.get_resume_schema()
+    assert [s["key"] for s in schema["sections"]] == ["projects"]
+    props = schema["schema"]["properties"]
+    # These render, so they must not be missing from the shape handed to the agent.
+    assert "voluntary_work" in props
+    assert "languages" in props
+    # The guidance names the sections instead of restating a hardcoded list.
+    assert "in order: projects" in schema["guidance"]
+
+
 def test_finalize_notes_unverified_coverage_without_a_generation_record(isolated):
     # Flag turned on for a resume that was generated before it existed.
     server.submit_relevance_review(COMPANY, JD, "scores...")
