@@ -16,8 +16,53 @@ Two reviews bracket resume generation:
 
 from __future__ import annotations
 
+import copy
 import json
 from typing import Any
+
+# Keys stripped from the catalogue before it is shown to a review sub-agent.
+# `tags` are selection metadata for the MAIN agent (they steer which highlight
+# fits which job); a recruiter judging evidence never needs them, and they are a
+# large share of the payload. `narrative` is deliberately NOT stripped — it is
+# evidence, and the honesty gate needs it to tell a supported claim from an
+# invented one.
+_STRIPPED_CATALOGUE_KEYS = ("tags",)
+
+
+def _strip_keys(node: Any) -> Any:
+    """Deep copy of `node` with every _STRIPPED_CATALOGUE_KEYS key removed."""
+    if isinstance(node, dict):
+        return {
+            k: _strip_keys(v)
+            for k, v in node.items()
+            if k not in _STRIPPED_CATALOGUE_KEYS
+        }
+    if isinstance(node, list):
+        return [_strip_keys(v) for v in node]
+    return copy.deepcopy(node)
+
+
+# The catalogue block is emitted FIRST and IDENTICALLY by every sub-agent prompt
+# that embeds it (relevance review, resume critique, qualification check), so
+# the three calls share a byte-identical prefix and prompt caching can actually
+# hit. Persona and task-specific instructions come after. Do not vary this text
+# per caller — that silently destroys the shared prefix.
+_CATALOGUE_HEADER = """# The candidate catalogue
+Everything known to be true about this candidate, and the full pool of what they
+could put on a resume. It is intentionally larger than any single resume. Each
+item under experience, education, projects, competitions, and certifications has
+a stable `id`. `narrative` fields are background context, not resume text. Treat
+this as the ONLY evidence about the candidate: if something is not supported
+here, it is not established.
+"""
+
+
+def _catalogue_block(personal_info: dict[str, Any]) -> str:
+    """The shared, cache-friendly opening block embedding the catalogue."""
+    catalogue = json.dumps(
+        _strip_keys(personal_info), separators=(",", ":"), ensure_ascii=False
+    )
+    return f"{_CATALOGUE_HEADER}\n```json\n{catalogue}\n```"
 
 # Tough-but-fair persona, centralized so it is easy to tune. ``{company}`` is
 # filled per call; everything else is constant.
@@ -93,19 +138,14 @@ def build_qualification_check_prompt(
     job's STATED requirements. A job is only ``QUALIFIED`` when every hard/must-have
     requirement is met; missing merits never disqualify. Output is a strict,
     parseable per-job block the main agent acts on deterministically.
+
+    Opens with the shared ``_catalogue_block`` so it shares a cacheable prefix
+    with the other sub-agent prompts.
     """
-    catalogue = json.dumps(personal_info, indent=2, ensure_ascii=False)
-    jobs_json = json.dumps(jobs, indent=2, ensure_ascii=False)
-    return f"""{QUALIFICATION_SCREENER_PERSONA}
+    jobs_json = json.dumps(jobs, separators=(",", ":"), ensure_ascii=False)
+    return f"""{_catalogue_block(personal_info)}
 
-# The candidate catalogue (everything known to be true about this candidate)
-Each item has a stable `id`. `narrative` fields are background context. Treat this as
-the ONLY evidence about the candidate — if a requirement isn't supported here, it is
-not established.
-
-```json
-{catalogue}
-```
+{QUALIFICATION_SCREENER_PERSONA}
 
 # The jobs to audit
 Each job has an `id`, `headline`, `employer`, and the requirements text (in
@@ -161,10 +201,14 @@ def build_relevance_review_prompt(
     Embeds the full personal-info catalogue so the recruiter sub-agent judges
     every candidate entry against the job, and asks for a strict, parseable
     ranking the main agent can use to decide what to include.
+
+    Opens with the shared ``_catalogue_block`` so it shares a cacheable prefix
+    with the other sub-agent prompts.
     """
-    catalogue = json.dumps(personal_info, indent=2, ensure_ascii=False)
     company_label = company or "the company"
-    return f"""{_persona(company)}
+    return f"""{_catalogue_block(personal_info)}
+
+{_persona(company)}
 
 # Job: {company_label}
 ## Job description
@@ -172,15 +216,6 @@ def build_relevance_review_prompt(
 <untrusted_job_text>
 {job_description.strip() or "(no job description provided)"}
 </untrusted_job_text>
-
-# Candidate catalogue (the full pool of everything they could put on a resume)
-This is intentionally larger than any single resume. Each item under
-experience, education, projects, competitions, and certifications has a stable
-`id`. `narrative` fields are background context, not resume text.
-
-```json
-{catalogue}
-```
 
 # Your task
 Rank how relevant each catalogue item is to THIS job. For every item in
@@ -241,10 +276,14 @@ def build_resume_critique_prompt(
     OMITTED, by `id`, (3) name what to CUT/trim so the resume stays tight and
     one page, and (4) note what is genuinely working. Output is a strict,
     parseable shape the main agent can act on deterministically.
+
+    Opens with the shared ``_catalogue_block`` so it shares a cacheable prefix
+    with the other sub-agent prompts.
     """
-    catalogue = json.dumps(personal_info, indent=2, ensure_ascii=False)
     company_label = company or "the company"
-    return f"""{_persona(company)}
+    return f"""{_catalogue_block(personal_info)}
+
+{_persona(company)}
 
 # Job: {company_label}
 ## Job description
@@ -252,14 +291,6 @@ def build_resume_critique_prompt(
 <untrusted_job_text>
 {job_description.strip() or "(no job description provided)"}
 </untrusted_job_text>
-
-# The full candidate catalogue (everything they COULD have put on the resume)
-Each item has a stable `id`. `narrative` fields are background context, not
-resume text.
-
-```json
-{catalogue}
-```
 
 # The resume the candidate actually submitted (rendered LaTeX source)
 Read it the way it would appear on the page; ignore LaTeX formatting commands.
@@ -599,3 +630,115 @@ text for each finding. Report:
 
 Return a simple list grouped by the categories above; "clean" for any category
 with no issues. Do not comment on content strategy or what to include."""
+
+
+def build_final_review_prompt(
+    company: str, job_description: str, resume_text: str
+) -> str:
+    """All three final passes (skim + red flags + proofread) in ONE prompt.
+
+    The three passes used to be three sequential sub-agents, which cost three
+    round trips to review one settled resume — the single biggest chunk of
+    wall-clock time in a tailoring run. They are independent of each other and
+    all read the same resume, so one sub-agent can do all three.
+
+    The order matters and is not cosmetic: the skim is only meaningful BEFORE a
+    careful read, and the proofread requires one. So the prompt forces the skim
+    to be answered first, from first impressions, and locks that answer.
+    """
+    company_label = company or "the company"
+    jd = job_description.strip() or "(no job description provided)"
+    return f"""You are reviewing a FINAL, settled resume for a candidate applying to
+{company_label}. You will play three different readers in sequence, and report
+all three results in one response.
+
+# Role: {company_label}
+## Job description
+{jd}
+
+# The resume (plain text — roughly what a reader's eye sees)
+{resume_text.strip()}
+
+# CRITICAL: do the passes IN ORDER, and do not go back
+Pass 1 only works if you have NOT read the resume carefully yet. Do it first,
+from a genuine fast skim, and do not revise its answers after passes 2-3 have
+made you read closely. First impressions are the data — losing them by reading
+carefully first would make pass 1 worthless.
+
+---
+
+## Pass 1 — the 6-second skim (do this FIRST, before reading closely)
+{SKIM_PERSONA}
+
+Do a genuine ~6-second skim, then answer briefly and honestly:
+
+1. **Takeaway.** In one sentence, who is this candidate and are they plausibly
+   right for THIS role? (Gut reaction, not a considered judgement.)
+2. **Strongest line.** What one line or item pulled your eye and helped most?
+3. **Missed entirely.** What did you NOT notice at all on the skim (buried at the
+   bottom, lost in a dense block, under-emphasised)? Name it — this is the point.
+4. **Fix.** The single highest-impact placement/emphasis change (move X up, bold
+   Y, split that dense paragraph) — not a content change.
+
+## Pass 2 — red flags
+{RED_FLAG_PERSONA}
+
+List what would make you hesitate or ask a skeptical question about this
+candidate for THIS role. For each flag give: the exact line/claim, the doubt it
+raises, and the question you'd ask in a screen. Focus on:
+
+- Overclaiming or a title that sounds too senior for the evidence shown.
+- Unexplained gaps, ambiguous scope, or "we vs I" on a key achievement.
+- Bullets that invite a question the candidate may struggle to answer.
+
+For each flag, note whether it is best handled by (a) rewording the line, or
+(b) preparing an answer for interview. "none" if nothing genuinely gives you
+pause — do not manufacture concerns.
+
+## Pass 3 — proofread
+{PROOFREADER_PERSONA}
+
+Check ONLY mechanical consistency and correctness. Quote the exact offending
+text for each finding. Report:
+
+1. **Tense.** Bullets should be consistent (past tense for completed work). Flag
+   any that switch.
+2. **Date formats.** Flag any inconsistency (e.g. "2024" vs "Jan 2024" vs
+   "2024-01" mixed across the page).
+3. **Repetition.** The same action verb opening several bullets; the same word
+   repeated awkwardly close together.
+4. **Punctuation / capitalisation.** Inconsistent trailing punctuation on
+   bullets, stray double spaces, inconsistent capitalisation of headings.
+5. **Spelling / typos.** Anything misspelled.
+6. **Language.** Note if the text mixes languages (including section headers that
+   don't match the language of the bullets), or if the target market (e.g. a
+   Swedish Platsbanken ad) would expect a different language than what is
+   written — flag it, don't translate.
+
+"clean" for any category with no issues. Do not comment on content strategy.
+
+---
+
+# Output format (return EXACTLY this, nothing else)
+```
+## SKIM
+1. Takeaway: <one sentence>
+2. Strongest line: <line>
+3. Missed entirely: <what your eye skipped>
+4. Fix: <the one placement/emphasis change>
+
+## RED FLAGS
+- "<exact line/claim>" — <the doubt> — <question you'd ask> — handle by: reword | interview prep
+... ("none" if nothing gives you pause)
+
+## PROOFREAD
+- Tense: <findings or "clean">
+- Date formats: <findings or "clean">
+- Repetition: <findings or "clean">
+- Punctuation / capitalisation: <findings or "clean">
+- Spelling / typos: <findings or "clean">
+- Language: <findings or "clean">
+```
+
+Keep each section tight. Three honest short sections beat three padded ones —
+"none"/"clean" is a valid and useful answer."""

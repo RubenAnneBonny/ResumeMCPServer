@@ -27,8 +27,9 @@ before it has passed.
 
 3. **Qualification gate (mandatory).** Call
    `mcp__resume__get_qualification_check_prompt(jobs)` with the candidate jobs, then run
-   the returned `prompt` in a **fresh sub-agent** (the Task tool, no inherited context) —
-   exactly like the recruiter reviews. It returns a per-job verdict
+   the returned `prompt` in a **fresh `qualification-auditor` sub-agent** (no inherited
+   context) — exactly like the recruiter reviews. Batch the whole shortlist into ONE call,
+   not one sub-agent per job. It returns a per-job verdict
    (`QUALIFIED` / `NOT QUALIFIED` / `UNCERTAIN`), a requirement-by-requirement table, and
    the unmet stated requirements (`MISSING_HARD`). A job is `NOT QUALIFIED` only when a
    **hard** requirement is unmet; missing merits never disqualify.

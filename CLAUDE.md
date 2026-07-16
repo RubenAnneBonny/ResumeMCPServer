@@ -14,12 +14,22 @@ keeps them independent and bills only to the user's normal subscription.
 The check is symmetric — **cut weak entries AND force-include strong ones that were
 missed**. Never silently drop something valuable.
 
+**Route every review through its dedicated agent** (`.claude/agents/`), not a
+default sub-agent: `subagent_type: recruiter-reviewer` for steps 1 and 3,
+`final-reviewer` for step 4b, `qualification-auditor` for the job-search gate. Each is
+pinned to a faster model and told to follow the server's prompt verbatim. Hand the
+prompt over unchanged.
+
+**Never run sub-agent reviews sequentially when they are independent.** Sequential
+round trips are what made a full run take ~20 minutes. Launch independent reviews in
+parallel, in a single message.
+
 0. **Research the company yourself** with the `WebSearch`/`WebFetch` tools — mission,
    domain, and what it values for this role. For a small or obscure employer, fetch its own
    site and read the ad closely. Use the themes to steer the summary and which highlights
    you emphasise. (The server no longer ships a research tool; you do this natively.)
 1. **Rank first.** Call `get_relevance_review_prompt(company, job_description)` and run
-   the returned `prompt` in a fresh Task sub-agent. Then call
+   the returned `prompt` in a fresh `recruiter-reviewer` sub-agent. Then call
    `submit_relevance_review(company, job_description, results)` with the sub-agent's output.
    This is a **hard code gate**: `generate_resume` refuses to run for this job until the
    review is submitted (the server holds the artifact, so the step can't be faked). Use its
@@ -33,7 +43,7 @@ missed**. Never silently drop something valuable.
    `generate_resume(name, content, company, job_description)` — the same `company`/
    `job_description` strings you passed to `submit_relevance_review`.
 3. **Critique after writing.** Call `get_resume_critique_prompt(name, company,
-   job_description)` and run it in a fresh Task sub-agent, then call
+   job_description)` and run it in a fresh `recruiter-reviewer` sub-agent, then call
    `submit_resume_critique(name, company, job_description, findings)` with its output
    (this unlocks `finalize_resume`). It sees the full catalogue and the rendered resume, so
    it reports **unsupported claims** (anything the catalogue can't back), valuable entries
@@ -41,21 +51,31 @@ missed**. Never silently drop something valuable.
    keywords, per-item feedback, and a **"Worth interviewing the candidate about"** list.
    Two `PostToolUse` hooks also remind you (critique + guidelines).
 4. **Revise.** REMOVE/rephrase every unsupported claim, ADD every wrongly-omitted entry,
-   CUT the flagged filler, fix the keywords and per-item issues, call `generate_resume`
-   again, and repeat 3–4 until the critique's **Verdict is `READY`** (cap at ~3 rounds; only
-   *blocking* findings — unsupported claims, high-value omissions, real filler — force
-   another round; nitpicks don't). Each `generate_resume` returns deterministic
+   CUT the flagged filler, fix the keywords and per-item issues, then call
+   `generate_resume` again.
+   **Only *blocking* findings buy another critique round** — an unsupported claim, an
+   omitted entry scoring 4–5, or real filler still on the page. Everything else is a
+   nitpick: apply it **silently in the next `generate_resume`, with NO new critique
+   round**. Re-critiquing to bless a comma costs a full sub-agent round trip and changes
+   nothing. Repeat 3–4 only while blocking findings remain, until the **Verdict is
+   `READY`** (hard cap ~3 rounds; if it still isn't `READY`, say what is unresolved
+   rather than looping). Each `generate_resume` returns deterministic
    **`page_check`**, **`ats_check`**, and (when `include_all_experience` is on)
    **`selection_check`**. Fix overflow by CUTTING the lowest-relevance entry and underfill
    (`pages < target_pages`) by ADDING the next-highest-relevance entries or expanding
    highlights — **never** by shrinking/stretching margins, and never by padding with fluff.
    The server also rejects em-dashes and refuses to compile forbidden dashes, for every
    client.
-4b. **Final passes (once, near the end — NOT in the loop).** On the settled resume, run the
-   three one-shot reviewers in fresh sub-agents: `get_skim_review_prompt` (6-second
-   first-impression / emphasis), `get_red_flag_prompt` (skeptical questions; each can feed a
-   targeted interview), and `get_proofread_prompt` (tense/date/verb/punctuation/language —
-   final version only). You are the arbiter: apply real fixes, ignore beige committee-speak.
+4b. **Final review (once, near the end — NOT in the loop).** On the settled resume, call
+   `get_final_review_prompt(name, company, job_description)` and run it in **ONE** fresh
+   `final-reviewer` sub-agent. It returns all three passes in delimited sections: **SKIM**
+   (6-second first impression / emphasis), **RED FLAGS** (skeptical questions; each can feed
+   a targeted interview), **PROOFREAD** (tense/date/verb/punctuation/language). You are the
+   arbiter: apply real fixes, ignore beige committee-speak. Then regenerate once — these are
+   polish fixes and do **not** justify another critique round.
+   The older `get_skim_review_prompt` / `get_red_flag_prompt` / `get_proofread_prompt` tools
+   still exist. If you ever want them separately, launch all three **in parallel in a single
+   message** — never one after another.
 4c. **Finalize.** Call `finalize_resume(name, company, job_description)` — it refuses unless a
    critique is registered, the PDF is inside the page window (`max_pages`, plus
    `target_pages` when set), and (when `include_all_experience` is on) the last
@@ -70,6 +90,22 @@ missed**. Never silently drop something valuable.
 `narrative` fields in `personal_info.json` are background context only — never copy them
 verbatim into the resume. The recruiter persona and prompt wording live in
 `src/resume_mcp_server/critic.py`.
+
+### Quick mode (only when the user asks for it)
+
+**Full mode above is the default.** If the user asks for a quick/fast run:
+
+- **Skip step 0** (web research) **only when the JD is pasted in full** — the ad itself
+  then carries the themes. Still research if the JD is a link, a fragment, or the employer
+  is obscure and the ad is thin.
+- **Cap at ONE critique round**: generate → critique → apply blocking fixes → regenerate.
+  Report anything still unresolved rather than looping.
+- Use the combined `get_final_review_prompt` (never the three separate passes).
+
+Both gates still run — `submit_relevance_review` and `submit_resume_critique` are hard code
+gates, and quick mode never skips a review, it just stops re-running one. If the critique
+comes back `BLOCKING` after the single round, **say so plainly** instead of quietly
+shipping it.
 
 ## Selection policy and the page window (`ui_guidelines`)
 
@@ -114,8 +150,9 @@ When the user wants to **find** jobs (not tailor to one they already have), use 
 
 **Hard rule: never recommend a job before the qualification gate passes.** The retrieved
 ads are candidates, not recommendations. Before surfacing ANY job you MUST call
-`get_qualification_check_prompt(jobs)` and run it in a **fresh sub-agent** (Task tool, no
-inherited context) — like the recruiter reviews. A `PostToolUse` hook on
+`get_qualification_check_prompt(jobs)` and run it in a **fresh `qualification-auditor`
+sub-agent** (no inherited context) — like the recruiter reviews. Batch the shortlist into
+ONE call rather than one sub-agent per job. A `PostToolUse` hook on
 `search_platsbanken` also reminds you. **"Qualified" means the candidate meets the job's
 STATED requirements — NOT that they are likely to be hired, beat other applicants, or
 interview well.** A job is `NOT QUALIFIED` only when a *hard/must-have* requirement is

@@ -12,6 +12,7 @@ from mcp.server.fastmcp import FastMCP
 
 from resume_mcp_server import checks, paths, state
 from resume_mcp_server.critic import (
+    build_final_review_prompt,
     build_interview_prompt,
     build_proofread_prompt,
     build_qualification_check_prompt,
@@ -989,12 +990,57 @@ def _resume_plain_text(safe: str) -> str:
 
 
 @mcp.tool()
+def get_final_review_prompt(
+    name: str,
+    company: str = "",
+    job_description: str = "",
+) -> dict[str, Any]:
+    """Build the COMBINED final-pass prompt (skim + red flags + proofread).
+
+    PREFER THIS over the three separate get_skim_review_prompt /
+    get_red_flag_prompt / get_proofread_prompt tools: the three passes are
+    independent and read the same resume, so one fresh sub-agent does all three
+    in a single round trip instead of three sequential ones (that sequence was
+    the biggest chunk of wall-clock time in a tailoring run).
+
+    Run ONCE on the settled resume near the end — not inside the revision loop,
+    and not on drafts. Returns the three results in delimited SKIM / RED FLAGS /
+    PROOFREAD sections. You are the arbiter: apply the real fixes, ignore beige
+    committee-speak.
+
+    Args:
+        name: filename stem of an existing resume in output/, e.g. "acme_swe_2026".
+        company: the hiring company.
+        job_description: the job description text.
+    """
+    safe = _safe_name(name)
+    return {
+        "prompt": build_final_review_prompt(
+            company, job_description, _resume_plain_text(safe)
+        ),
+        "how_to_use": (
+            "Run in ONE fresh sub-agent (the recruiter/final-reviewer agent), "
+            "with this exact prompt. Apply the emphasis/placement fix from SKIM, "
+            "reword what RED FLAGS says to reword (or keep it for interview "
+            "prep, or close the gap truthfully via get_interview_prompt), and "
+            "apply the PROOFREAD fixes. Then regenerate once and finalize — "
+            "these are polish fixes, not a reason for another critique round."
+        ),
+    }
+
+
+@mcp.tool()
 def get_skim_review_prompt(
     name: str,
     company: str = "",
     job_description: str = "",
 ) -> dict[str, Any]:
     """Build a 6-second-skim first-impression prompt for a rendered resume.
+
+    Kept for compatibility — prefer get_final_review_prompt, which covers this
+    pass plus red flags and proofreading in one sub-agent round trip. If you do
+    use the three separate tools, launch them in PARALLEL (one message, three
+    Task calls), never sequentially.
 
     A FINAL pass (run once near the end, not in the revision loop). A fresh
     sub-agent sees only the rendered text and reacts fast: the takeaway, the
@@ -1022,6 +1068,9 @@ def get_red_flag_prompt(
     A FINAL pass. A fresh sub-agent lists what would make a hiring manager
     hesitate (overclaiming, a too-senior-sounding title, ambiguous scope,
     bullets that invite a question). Each flag can feed get_interview_prompt.
+
+    Kept for compatibility — prefer get_final_review_prompt (one round trip for
+    all three final passes); if used separately, launch the passes in PARALLEL.
     """
     safe = _safe_name(name)
     return {
@@ -1042,6 +1091,9 @@ def get_proofread_prompt(name: str) -> dict[str, Any]:
     Run ONCE on the final version (wasted on drafts): tense consistency, date
     formats, repeated opening verbs, punctuation, typos, and a language check
     (e.g. a Swedish Platsbanken ad may expect Swedish). Not a content pass.
+
+    Kept for compatibility — prefer get_final_review_prompt (one round trip for
+    all three final passes); if used separately, launch the passes in PARALLEL.
     """
     safe = _safe_name(name)
     return {
