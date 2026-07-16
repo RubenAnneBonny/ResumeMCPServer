@@ -60,6 +60,20 @@
         { "text": "Assisted researchers with data collection and numerical analysis for condensed matter physics experiments.", "tags": ["research", "physics"] }
       ],
       "tech": ["Python", "NumPy", "Matplotlib"]
+    },
+    {
+      "id": "summer-intern-backend",
+      "title": "Software Engineering Intern",
+      "company": "Example Analytics AB",
+      "location": "Gothenburg, Sweden",
+      "start_date": "2024-06",
+      "end_date": "2024-08",
+      "narrative": "Summer internship on the data platform team, building internal tooling for a batch pipeline. Worked in a team of four interns with a senior engineer as mentor.",
+      "highlights": [
+        { "text": "Built an internal dashboard for monitoring batch job failures, cutting the team's triage time for a failed run from roughly 30 minutes to under 5.", "tags": ["backend", "tooling"] },
+        { "text": "Added regression tests to a data ingestion service, raising line coverage from 40% to 75%.", "tags": ["testing", "backend"] }
+      ],
+      "tech": ["Python", "PostgreSQL", "Git"]
     }
   ],
   "competitions": [
