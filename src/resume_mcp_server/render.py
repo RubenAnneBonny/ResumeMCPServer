@@ -42,6 +42,64 @@ def latex_escape(value: Any) -> str:
     return _LATEX_ESCAPE_RE.sub(lambda m: _LATEX_ESCAPE_MAP[m.group(0)], text)
 
 
+# Section headers, keyed by the stable key used in ui_guidelines.section_titles.
+# These are the fallbacks: whatever the config omits renders in English exactly
+# as it did before section_titles existed. `projects` is the COMBINED
+# competitions+projects header, which is why its default reads as a pair.
+DEFAULT_SECTION_TITLES: dict[str, str] = {
+    "profile": "Profile",
+    "education": "Education",
+    "experience": "Experience",
+    "projects": "Competitions and Projects",
+    "skills": "Technical Skills",
+    "voluntary_work": "Voluntary Work and Engagements",
+    "certifications": "Certifications",
+    "languages": "Languages",
+}
+
+# Labels for the structured-skills sub-lists, keyed by their key in `skills`.
+# A skills sub-key with no label here is rendered with its key title-cased.
+DEFAULT_SKILL_LABELS: dict[str, str] = {
+    "languages": "Programming Languages",
+    "frameworks": "Frameworks & Libraries",
+    "tools": "Developer Tools",
+    "data_structures": "Data Structures",
+    "algorithms": "Algorithms",
+}
+
+
+# A flat skills list is not necessarily *technical*, so it defaults to the
+# plainer header. An explicit ui.section_titles.skills always wins.
+FLAT_SKILLS_TITLE = "Skills"
+
+
+def resolve_ui(ui: dict[str, Any], content: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Return `ui` with section_titles/skill_labels defaulted, ready to render.
+
+    Done here rather than in the template because the Jinja env uses
+    StrictUndefined and generate_resume renders the ui_guidelines.json file
+    as-is: `ui.section_titles.experience` would raise UndefinedError on any
+    config predating these keys. Merging defaults in one place keeps every
+    existing config working and keeps the template a plain lookup.
+
+    `content` is consulted only to pick the *default* skills header, which
+    depends on the catalogue's shape (structured -> "Technical Skills", flat
+    -> "Skills"); a configured title overrides either.
+    """
+    titles = dict(DEFAULT_SECTION_TITLES)
+    if isinstance((content or {}).get("skills"), list):
+        titles["skills"] = FLAT_SKILLS_TITLE
+    titles.update(ui.get("section_titles") or {})
+    return {
+        **ui,
+        "section_titles": titles,
+        "skill_labels": {
+            **DEFAULT_SKILL_LABELS,
+            **(ui.get("skill_labels") or {}),
+        },
+    }
+
+
 def make_environment() -> Environment:
     env = Environment(
         loader=FileSystemLoader(str(TEMPLATES_DIR)),
@@ -71,4 +129,4 @@ def render_resume(
     # Drop any stray "ui" key so it can't collide with the ui=ui keyword and
     # raise "got multiple values for keyword argument 'ui'".
     fields = {k: v for k, v in content.items() if k != "ui"}
-    return template.render(**fields, ui=ui)
+    return template.render(**fields, ui=resolve_ui(ui, content))

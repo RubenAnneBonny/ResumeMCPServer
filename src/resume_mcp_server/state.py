@@ -91,3 +91,31 @@ def record_critique(
 
 def has_critique(name: str, company: str, job_description: str) -> bool:
     return name in load(company, job_description).get("critiques", {})
+
+
+def record_generation(
+    name: str, company: str, job_description: str, results: dict[str, Any]
+) -> dict[str, Any]:
+    """Record the deterministic checks from the latest generate_resume for `name`.
+
+    finalize_resume receives only a name, and the rendered .tex carries no entry
+    ids — so a content-level check like experience coverage cannot be recomputed
+    at finalize time. Recording it here lets the finalize gate see the last
+    known result instead of trusting the agent's word.
+    """
+    key = job_key(company, job_description)
+    state = load(company, job_description)
+    state.setdefault("company", company)
+    state["job_key"] = key
+    generations = state.setdefault("generations", {})
+    generations[name] = {"generated_at": _now(), **results}
+    _save(key, state)
+    return state
+
+
+def last_generation(
+    name: str, company: str, job_description: str
+) -> dict[str, Any] | None:
+    """The recorded checks from the most recent generate_resume for `name`, or
+    None if there is no record (e.g. a resume generated before this existed)."""
+    return load(company, job_description).get("generations", {}).get(name)

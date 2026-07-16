@@ -104,17 +104,53 @@ def _list_sections(personal_info: dict[str, Any]) -> list[str]:
     return [k for k, v in personal_info.items() if isinstance(v, list)]
 
 
+def _page_cfg(ui: dict[str, Any]) -> dict[str, Any]:
+    page = ui.get("page") if isinstance(ui, dict) else None
+    return page if isinstance(page, dict) else {}
+
+
 def _max_pages(ui: dict[str, Any]) -> int:
     """Page limit from ui_guidelines.page.max_pages (default 1). One page is the
     right default for students and Anglo/quant firms; a Swedish-market config
     can raise it to 2."""
-    page = ui.get("page") if isinstance(ui, dict) else None
-    if isinstance(page, dict):
-        try:
-            return max(1, int(page.get("max_pages", 1)))
-        except (TypeError, ValueError):
-            return 1
-    return 1
+    try:
+        return max(1, int(_page_cfg(ui).get("max_pages", 1)))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _target_pages(ui: dict[str, Any]) -> int | None:
+    """Optional page FLOOR from ui_guidelines.page.target_pages. None = no
+    target (only the max_pages ceiling applies). When set, a resume that comes
+    in short is wasting space the candidate could be using — page_check says so.
+    """
+    raw = _page_cfg(ui).get("target_pages")
+    if raw is None:
+        return None
+    try:
+        return max(1, int(raw))
+    except (TypeError, ValueError):
+        return None
+
+
+def _include_all_experience(ui: dict[str, Any]) -> bool:
+    """ui_guidelines.selection.include_all_experience (default False = today's
+    behavior, where the agent selects the relevant subset)."""
+    selection = ui.get("selection") if isinstance(ui, dict) else None
+    if isinstance(selection, dict):
+        return bool(selection.get("include_all_experience", False))
+    return False
+
+
+def _banned_phrases(ui: dict[str, Any]) -> list[str]:
+    """ui_guidelines.voice.banned_phrases — strings rejected anywhere in the
+    content, case-insensitively. Absent/empty = no-op."""
+    voice = ui.get("voice") if isinstance(ui, dict) else None
+    if isinstance(voice, dict):
+        raw = voice.get("banned_phrases")
+        if isinstance(raw, list):
+            return [p for p in raw if isinstance(p, str)]
+    return []
 
 
 def _count_entries(personal_info: dict[str, Any]) -> int:
@@ -628,6 +664,16 @@ def generate_resume(
             "parentheses instead):\n- " + "\n- ".join(dash_findings)
         )
 
+    # Same idea, but configurable: ui_guidelines.voice.banned_phrases lets the
+    # user ban their own pet phrases (committee-speak, padding) for every client.
+    phrase_findings = checks.find_banned_phrases(content, _banned_phrases(ui))
+    if phrase_findings:
+        raise ValueError(
+            "content contains phrases banned by ui_guidelines.voice.banned_phrases. "
+            "Rewrite the affected text with concrete, specific wording:\n- "
+            + "\n- ".join(phrase_findings)
+        )
+
     tex_source = render_resume("resume.tex.j2", content, ui)
     tex_path = paths.OUTPUT_DIR / f"{safe}.tex"
     tex_path.write_text(tex_source, encoding="utf-8")
@@ -643,24 +689,39 @@ def generate_resume(
         ),
     }
 
-    if not compile_pdf:
-        return result
+    # Content-level check — no PDF needed, so it runs even with compile_pdf=False.
+    if _include_all_experience(ui):
+        result["selection_check"] = checks.experience_coverage_check(
+            content, _read_json(paths.PERSONAL_INFO_PATH)
+        )
 
-    cr = compile_tex(tex_path)
-    result["compiled"] = cr.ok
-    if cr.ok and cr.pdf_path is not None:
-        result["pdf_path"] = str(cr.pdf_path)
-        # Deterministic post-compile checks. These surface problems in the
-        # result (they don't raise) so the agent can iterate; finalize_resume
-        # is the hard gate that refuses an over-length resume.
-        result["page_check"] = checks.page_check(cr.pdf_path, _max_pages(ui))
-        result["ats_check"] = checks.ats_check(cr.pdf_path, content)
-    if cr.error:
-        result["error"] = cr.error
-    if cr.stdout:
-        result["stdout"] = cr.stdout[-4000:]
-    if cr.stderr:
-        result["stderr"] = cr.stderr[-4000:]
+    if compile_pdf:
+        cr = compile_tex(tex_path)
+        result["compiled"] = cr.ok
+        if cr.ok and cr.pdf_path is not None:
+            result["pdf_path"] = str(cr.pdf_path)
+            # Deterministic post-compile checks. These surface problems in the
+            # result (they don't raise) so the agent can iterate; finalize_resume
+            # is the hard gate that refuses a resume outside the page window.
+            result["page_check"] = checks.page_check(
+                cr.pdf_path, _max_pages(ui), _target_pages(ui)
+            )
+            result["ats_check"] = checks.ats_check(cr.pdf_path, content)
+        if cr.error:
+            result["error"] = cr.error
+        if cr.stdout:
+            result["stdout"] = cr.stdout[-4000:]
+        if cr.stderr:
+            result["stderr"] = cr.stderr[-4000:]
+
+    # Hand the content-level verdicts to the server-side state machine, so
+    # finalize_resume can gate on checks it cannot recompute from the .tex.
+    state.record_generation(
+        safe,
+        company,
+        job_description,
+        {"selection_check": result.get("selection_check")},
+    )
     return result
 
 
@@ -846,11 +907,16 @@ def finalize_resume(
 ) -> dict[str, Any]:
     """Mark a resume final. GATED on a submitted critique for `name`.
 
-    This is the terminal step of the tailoring loop. It refuses unless a
-    critique has been registered (submit_resume_critique) for this resume and
-    (company, job_description), AND the compiled PDF is within the page limit
-    (ui_guidelines.page.max_pages, default 1) — so a resume can't be shipped
-    uncritiqued or overflowing. Returns the resume's paths for confirmation.
+    This is the terminal step of the tailoring loop. It refuses unless:
+      - a critique has been registered (submit_resume_critique) for this resume
+        and (company, job_description);
+      - the compiled PDF sits in the configured page window — at most
+        ui_guidelines.page.max_pages (default 1) and, when configured, at least
+        page.target_pages;
+      - and, when ui_guidelines.selection.include_all_experience is on, the last
+        generate_resume for this name covered every catalogue job.
+    So a resume can't be shipped uncritiqued, overflowing, half-empty, or with a
+    job silently missing. Returns the resume's paths for confirmation.
 
     Args:
         name: the resume stem to finalize, e.g. "acme_swe_2026".
@@ -868,21 +934,42 @@ def finalize_resume(
     tex_path = paths.OUTPUT_DIR / f"{safe}.tex"
     pdf_path = paths.OUTPUT_DIR / f"{safe}.pdf"
 
+    _bootstrap_ui_guidelines()
+    ui = _read_json(paths.UI_GUIDELINES_PATH)
+
     if pdf_path.exists():
-        _bootstrap_ui_guidelines()
-        ui = _read_json(paths.UI_GUIDELINES_PATH)
-        pc = checks.page_check(pdf_path, _max_pages(ui))
+        pc = checks.page_check(pdf_path, _max_pages(ui), _target_pages(ui))
         if not pc["ok"]:
             raise ValueError(
-                f"finalize_resume is blocked: {pc.get('message', 'too many pages')}"
+                f"finalize_resume is blocked: {pc.get('message', 'page count out of range')}"
             )
 
-    return {
+    result: dict[str, Any] = {
         "name": safe,
         "finalized": True,
         "tex_path": str(tex_path) if tex_path.exists() else None,
         "pdf_path": str(pdf_path) if pdf_path.exists() else None,
     }
+
+    # Experience coverage can't be recomputed here (the .tex has no ids), so
+    # consult what generate_resume recorded for this resume.
+    if _include_all_experience(ui):
+        last = state.last_generation(safe, company, job_description)
+        sc = (last or {}).get("selection_check")
+        if sc is None:
+            result["note"] = (
+                "selection.include_all_experience is ON but this resume has no "
+                "recorded generate_resume check (generated before the flag was "
+                "set?). Coverage was NOT verified — re-run generate_resume to "
+                "check it."
+            )
+        elif not sc.get("ok", True):
+            raise ValueError(
+                "finalize_resume is blocked: "
+                + sc.get("message", "not every catalogue job is on the resume")
+            )
+
+    return result
 
 
 def _resume_plain_text(safe: str) -> str:

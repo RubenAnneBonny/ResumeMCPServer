@@ -38,6 +38,10 @@ def isolated(tmp_path, monkeypatch):
     return tmp_path
 
 
+def _write(path, payload):
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
 def test_full_gated_flow(isolated):
     content = {"name": "Ada", "title": "Engineer"}
 
@@ -65,3 +69,78 @@ def test_generate_rejects_em_dash(isolated):
     content = {"name": "Ada", "summary": "Led a team—shipped fast"}
     with pytest.raises(ValueError, match="forbidden dash"):
         server.generate_resume("r", content, COMPANY, JD, compile_pdf=False)
+
+
+def test_generate_rejects_banned_phrase(isolated):
+    _write(
+        isolated / "data" / "ui_guidelines.json",
+        {**UI, "voice": {"banned_phrases": ["gedigen kompetens"]}},
+    )
+    server.submit_relevance_review(COMPANY, JD, "scores...")
+    content = {"name": "Ada", "summary": "Har Gedigen Kompetens inom analys."}
+    with pytest.raises(ValueError, match="gedigen kompetens"):
+        server.generate_resume("r", content, COMPANY, JD, compile_pdf=False)
+
+
+def test_generate_allows_content_without_banned_phrases(isolated):
+    _write(
+        isolated / "data" / "ui_guidelines.json",
+        {**UI, "voice": {"banned_phrases": ["gedigen kompetens"]}},
+    )
+    server.submit_relevance_review(COMPANY, JD, "scores...")
+    content = {"name": "Ada", "summary": "Byggde en riskmodell i Python."}
+    gen = server.generate_resume("r", content, COMPANY, JD, compile_pdf=False)
+    assert gen["tex_path"].endswith("r.tex")
+
+
+def test_selection_check_absent_when_flag_off(isolated):
+    server.submit_relevance_review(COMPANY, JD, "scores...")
+    gen = server.generate_resume("r", {"name": "Ada"}, COMPANY, JD, compile_pdf=False)
+    assert "selection_check" not in gen
+
+
+def test_include_all_experience_reports_and_blocks_finalize(isolated):
+    _write(
+        isolated / "data" / "personal_info.json",
+        {"name": "Ada", "experience": [{"id": "job-a", "title": "Dev"}, {"id": "job-b", "title": "Analyst"}]},
+    )
+    _write(
+        isolated / "data" / "ui_guidelines.json",
+        {**UI, "selection": {"include_all_experience": True}},
+    )
+    server.submit_relevance_review(COMPANY, JD, "scores...")
+
+    # Only one of the two catalogue jobs is on the resume.
+    content = {"name": "Ada", "experience": [{"id": "job-a", "title": "Dev"}]}
+    gen = server.generate_resume("r", content, COMPANY, JD, compile_pdf=False)
+    assert gen["selection_check"]["ok"] is False
+    assert gen["selection_check"]["missing_ids"] == ["job-b"]
+
+    # ... and finalize refuses, even though the critique gate is satisfied.
+    server.submit_resume_critique("r", COMPANY, JD, "READY")
+    with pytest.raises(ValueError, match="job-b"):
+        server.finalize_resume("r", COMPANY, JD)
+
+    # Adding the missing job clears both.
+    content["experience"].append({"id": "job-b", "title": "Analyst"})
+    gen = server.generate_resume("r", content, COMPANY, JD, compile_pdf=False)
+    assert gen["selection_check"]["ok"] is True
+    assert server.finalize_resume("r", COMPANY, JD)["finalized"] is True
+
+
+def test_finalize_notes_unverified_coverage_without_a_generation_record(isolated):
+    # Flag turned on for a resume that was generated before it existed.
+    server.submit_relevance_review(COMPANY, JD, "scores...")
+    server.generate_resume("r", {"name": "Ada"}, COMPANY, JD, compile_pdf=False)
+    server.submit_resume_critique("r", COMPANY, JD, "READY")
+    _write(
+        isolated / "data" / "personal_info.json",
+        {"name": "Ada", "experience": [{"id": "job-a", "title": "Dev"}]},
+    )
+    _write(
+        isolated / "data" / "ui_guidelines.json",
+        {**UI, "selection": {"include_all_experience": True}},
+    )
+    fin = server.finalize_resume("r", COMPANY, JD)
+    assert fin["finalized"] is True
+    assert "NOT verified" in fin["note"]

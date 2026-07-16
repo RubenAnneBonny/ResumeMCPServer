@@ -8,7 +8,7 @@ Works with any MCP-capable client: Claude Code, Claude Desktop, Cursor, Continue
 
 - `data/personal_info.json` — your full catalogue (every job, project, competition, every bullet you might ever want). Verbose by design. **Gitignored** — this file holds your real data.
 - `data/personal_info.example.json` — committed dummy data. On first run, copied to `personal_info.json` if it's missing.
-- `data/ui_guidelines.json` — style knobs: fonts, accent colour, margins, `page.max_pages`, voice (person/tense). **Gitignored**; auto-seeded on first run from `data/ui_guidelines.example.json`.
+- `data/ui_guidelines.json` — style + policy knobs: fonts, accent colour, margins, the page window (`page.max_pages` / `page.target_pages`), section titles and language, selection policy, voice (person/tense/banned phrases). See [Configuring the output](#configuring-the-output-dataui_guidelinesjson). **Gitignored**; auto-seeded on first run from `data/ui_guidelines.example.json`.
 - `data/ui_guidelines.example.json` — committed defaults; copied to `ui_guidelines.json` if missing.
 - `templates/resume.tex.j2` — the single Jinja2 LaTeX template. Generic placeholders only.
 - `data/backups/` — timestamped catalogue backups written before every write. **Gitignored**.
@@ -129,11 +129,11 @@ Spawn the server directly via stdio using the official `@modelcontextprotocol/sd
 | `get_resume_schema()` | Expected shape for `generate_resume`'s `content`, plus the mandatory tailoring guidance. |
 | `get_relevance_review_prompt(company, job_description)` | Build the pre-generation ranking prompt. Run in a fresh sub-agent. |
 | `submit_relevance_review(company, job_description, results)` | Register the ranking result. **Unlocks `generate_resume`.** |
-| `generate_resume(name, content, company, job_description, compile_pdf=True)` | Render `.tex`, compile `.pdf`. Returns paths, `page_check`, `ats_check`. Gated on a relevance review. |
+| `generate_resume(name, content, company, job_description, compile_pdf=True)` | Render `.tex`, compile `.pdf`. Returns paths, `page_check`, `ats_check`, and `selection_check` when `include_all_experience` is on. Gated on a relevance review. |
 | `get_resume_critique_prompt(name, company, job_description)` | Build the post-generation critique prompt. Run in a fresh sub-agent. |
 | `submit_resume_critique(name, company, job_description, findings)` | Register the critique. **Unlocks `finalize_resume`.** |
 | `get_skim_review_prompt(name, …)` / `get_red_flag_prompt(name, …)` / `get_proofread_prompt(name)` | One-shot final-pass reviewers (6-second skim / red flags / proofread). |
-| `finalize_resume(name, company, job_description)` | Terminal step. Refuses unless critiqued and within `max_pages`. |
+| `finalize_resume(name, company, job_description)` | Terminal step. Refuses unless critiqued, inside the page window, and (when configured) covering every catalogue job. |
 | `get_interview_prompt(section, target_id, topic, company, job_description, focus)` | Interview the user to enrich one entry. Run **yourself in the conversation**, not a sub-agent. |
 | `compile_resume(name)` | Re-compile an existing `.tex` without re-rendering. |
 | `list_resumes()` / `check_environment()` | List outputs / diagnostics (files present, Tectonic installed). |
@@ -164,6 +164,82 @@ This repo is meant to be public. Real content lives only on your machine.
 
 Always run `git status` before pushing — if anything from `data/` (other than the `*.example.json` files) or `output/` shows up unexpectedly, stop and investigate.
 
+## Configuring the output (`data/ui_guidelines.json`)
+
+Every key below is optional — omit it and you get the previous behavior. Seeded from `data/ui_guidelines.example.json` on first run.
+
+### Section titles and language
+
+The template ships English headers, but nothing is hardcoded: `section_titles` maps a stable section key to the display string, and `skill_labels` does the same for the labels *inside* the skills section. Anything you don't set falls back to English, so existing configs keep working. Both are LaTeX-escaped, so `&` and `%` are safe.
+
+```jsonc
+{
+  "section_titles": {
+    "profile": "Profil",                            // default: "Profile"
+    "education": "Utbildning",                      // default: "Education"
+    "experience": "Arbetslivserfarenhet",           // default: "Experience"
+    "projects": "Strategiska uppdrag",              // default: "Competitions and Projects"
+    "skills": "Tekniska färdigheter",               // default: "Technical Skills"
+    "voluntary_work": "Ideellt engagemang",         // default: "Voluntary Work and Engagements"
+    "certifications": "Certifieringar",             // default: "Certifications"
+    "languages": "Språk"                            // default: "Languages"
+  },
+  "skill_labels": {
+    "languages": "Programmeringsspråk",             // default: "Programming Languages"
+    "frameworks": "Ramverk & bibliotek",            // default: "Frameworks & Libraries"
+    "tools": "Utvecklingsverktyg",                  // default: "Developer Tools"
+    "data_structures": "Datastrukturer",
+    "algorithms": "Algoritmer"
+  }
+}
+```
+
+> `projects` is the header for the **combined** competitions+projects section. `skill_labels` only applies to the structured skills shape (see below).
+
+### Page window: `max_pages` and `target_pages`
+
+`page.max_pages` (default 1) is a hard **ceiling**. `page.target_pages` is an optional **floor** — set it when a short resume is a problem (e.g. a Swedish-market two-pager that comes in at one page is wasting the space). Both are enforced by the deterministic `page_check` in every `generate_resume` result, and both gate `finalize_resume`.
+
+```json
+"page": { "max_pages": 2, "target_pages": 2 }
+```
+
+`target_pages` must be `<= max_pages` (a floor above the ceiling is unsatisfiable — `update_ui_guidelines` rejects it). Underfill tells the agent to **add the next-highest-relevance entries or expand highlights**, per the relevance review — never to pad with fluff or stretch the margins.
+
+### Selection policy: `include_all_experience`
+
+```json
+"selection": { "include_all_experience": false }
+```
+
+Default `false` — the agent picks the subset of jobs relevant to the JD. Set `true` when every job in the catalogue must appear (some markets read a missing job as a gap): `generate_resume` then returns a `selection_check` naming any catalogue experience `id` that isn't on the page, and `finalize_resume` refuses until it's clean. Older roles may be compressed to title/company/dates with 0–1 bullets — but never dropped.
+
+### Banned phrases
+
+Em-dashes are always rejected. `voice.banned_phrases` adds your own, matched case-insensitively anywhere in the content, with the offending field path named in the error:
+
+```json
+"voice": {
+  "banned_phrases": ["gedigen kompetens", "kvalificerat stöd", "tillförde perspektiv"]
+}
+```
+
+Empty or absent = no-op. Enforced server-side (so it holds on every MCP client) and, in Claude Code, pre-emptively by the `PreToolUse` hook.
+
+### Skills: two accepted shapes
+
+Structured (developer default, labels from `skill_labels`):
+
+```json
+"skills": { "languages": ["Python"], "frameworks": ["PyTorch"], "tools": ["Git"] }
+```
+
+Flat (renders as one comma-separated line under `section_titles.skills`, defaulting to `"Skills"` rather than `"Technical Skills"`):
+
+```json
+"skills": ["Projektledning", "Upphandling", "Avtalsrätt"]
+```
+
 ## Tailoring model (how the agent uses this)
 
 `personal_info.json` is the **complete catalogue** — intentionally larger than any single resume. For a given JD, the agent makes two independent decisions:
@@ -182,7 +258,7 @@ The loop is **enforced server-side**, not just by prose: the server records whic
 1. **Rank (before selecting).** Call `get_relevance_review_prompt(company, job_description)`, run it in a fresh sub-agent, then `submit_relevance_review(...)`. This **unlocks** `generate_resume` for this job.
 2. **Generate.** Select and rewrite content using those rankings, then call `generate_resume(name, content, company, job_description)`. The result includes deterministic `page_check` (≤ `max_pages`, default 1) and `ats_check`.
 3. **Critique (after writing).** Call `get_resume_critique_prompt(name, company, job_description)`, run it in a fresh sub-agent, then `submit_resume_critique(...)`. It compares the rendered resume against the **full catalogue** — flagging unsupported claims, wrongly-omitted entries (by `id`), filler to cut, missing keywords, per-item feedback, and a **BLOCKING/READY** verdict so the loop terminates.
-4. **Revise, review, finalize.** Apply blocking fixes and re-`generate_resume` until the verdict is `READY` (cap ~3 rounds). Run the one-shot final passes (`get_skim_review_prompt`, `get_red_flag_prompt`, `get_proofread_prompt`), then `finalize_resume(...)` — which refuses unless a critique is registered **and** the PDF is within `max_pages`.
+4. **Revise, review, finalize.** Apply blocking fixes and re-`generate_resume` until the verdict is `READY` (cap ~3 rounds). Run the one-shot final passes (`get_skim_review_prompt`, `get_red_flag_prompt`, `get_proofread_prompt`), then `finalize_resume(...)` — which refuses unless a critique is registered, the PDF sits in the configured page window (`max_pages`, and `target_pages` when set), and every catalogue job is present if `include_all_experience` is on.
 
 The omission check is the safety net that makes it hard to drop something valuable: the post-write critic compares what's on the page against the entire catalogue and names anything strong that's missing, by `id`.
 

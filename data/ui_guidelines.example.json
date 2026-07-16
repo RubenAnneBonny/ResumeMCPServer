@@ -8,6 +8,26 @@
     "margin_bottom": "1.0cm",
     "max_pages": 1
   },
+  "section_titles": {
+    "profile": "Profile",
+    "education": "Education",
+    "experience": "Experience",
+    "projects": "Competitions and Projects",
+    "skills": "Technical Skills",
+    "voluntary_work": "Voluntary Work and Engagements",
+    "certifications": "Certifications",
+    "languages": "Languages"
+  },
+  "skill_labels": {
+    "languages": "Programming Languages",
+    "frameworks": "Frameworks & Libraries",
+    "tools": "Developer Tools",
+    "data_structures": "Data Structures",
+    "algorithms": "Algorithms"
+  },
+  "selection": {
+    "include_all_experience": false
+  },
   "fonts": {
     "main": "Computer Modern Roman",
     "family": "cmr",
@@ -43,6 +63,7 @@
   "voice": {
     "person": "implied_first_no_pronoun",
     "tense": "past",
-    "notes": "No personal pronouns (no 'I'/'my'/'he'/'she'). Past tense. Lead each bullet with a strong action verb. Do not use em-dashes (—); use commas, colons, or parentheses instead."
+    "notes": "No personal pronouns (no 'I'/'my'/'he'/'she'). Past tense. Lead each bullet with a strong action verb. Do not use em-dashes (—); use commas, colons, or parentheses instead.",
+    "banned_phrases": []
   }
 }

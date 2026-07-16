@@ -27,7 +27,9 @@ missed**. Never silently drop something valuable.
 2. **Select + generate.** Pick and rewrite content (2–4 highlights per item) following
    `ui_guidelines.voice`: **no personal pronouns, past tense, strong action verbs, and
    never em-dashes (—)** — use commas, colons, or parentheses (the server rejects em-dashes
-   in `generate_resume`, and a `PreToolUse` hook also blocks them). Then call
+   in `generate_resume`, and a `PreToolUse` hook also blocks them). If
+   `voice.banned_phrases` is set, those strings are rejected too (case-insensitively,
+   anywhere in the content). Obey the **selection policy** below. Then call
    `generate_resume(name, content, company, job_description)` — the same `company`/
    `job_description` strings you passed to `submit_relevance_review`.
 3. **Critique after writing.** Call `get_resume_critique_prompt(name, company,
@@ -43,16 +45,21 @@ missed**. Never silently drop something valuable.
    again, and repeat 3–4 until the critique's **Verdict is `READY`** (cap at ~3 rounds; only
    *blocking* findings — unsupported claims, high-value omissions, real filler — force
    another round; nitpicks don't). Each `generate_resume` returns deterministic
-   **`page_check`** and **`ats_check`**: fix overflow by CUTTING the lowest-relevance entry,
-   not by shrinking margins. The server also rejects em-dashes and refuses to compile
-   forbidden dashes, for every client.
+   **`page_check`**, **`ats_check`**, and (when `include_all_experience` is on)
+   **`selection_check`**. Fix overflow by CUTTING the lowest-relevance entry and underfill
+   (`pages < target_pages`) by ADDING the next-highest-relevance entries or expanding
+   highlights — **never** by shrinking/stretching margins, and never by padding with fluff.
+   The server also rejects em-dashes and refuses to compile forbidden dashes, for every
+   client.
 4b. **Final passes (once, near the end — NOT in the loop).** On the settled resume, run the
    three one-shot reviewers in fresh sub-agents: `get_skim_review_prompt` (6-second
    first-impression / emphasis), `get_red_flag_prompt` (skeptical questions; each can feed a
    targeted interview), and `get_proofread_prompt` (tense/date/verb/punctuation/language —
    final version only). You are the arbiter: apply real fixes, ignore beige committee-speak.
 4c. **Finalize.** Call `finalize_resume(name, company, job_description)` — it refuses unless a
-   critique is registered AND the PDF is within `max_pages`.
+   critique is registered, the PDF is inside the page window (`max_pages`, plus
+   `target_pages` when set), and (when `include_all_experience` is on) the last
+   `generate_resume` covered every catalogue job.
 5. **Targeted interview (optional, per critique).** For each item the critique flags under
    "Worth interviewing the candidate about", you MAY call `get_interview_prompt(section,
    target_id, company, job_description, focus=<the gap>)` and run that narrow interview
@@ -63,6 +70,27 @@ missed**. Never silently drop something valuable.
 `narrative` fields in `personal_info.json` are background context only — never copy them
 verbatim into the resume. The recruiter persona and prompt wording live in
 `src/resume_mcp_server/critic.py`.
+
+## Selection policy and the page window (`ui_guidelines`)
+
+Read these before selecting content; they change what "done" means.
+
+- **`selection.include_all_experience`** (default `false`). When `true`, **every job in the
+  catalogue must appear on the resume** — the relevance review then ranks jobs for
+  *emphasis*, not for inclusion. An older or off-target role may be compressed to
+  title/company/dates with 0–1 bullets, but **never dropped** (a missing job reads as a
+  gap). `generate_resume` returns a `selection_check` naming any missing `id`, and
+  `finalize_resume` refuses until it is clean. Projects, competitions, and certifications
+  stay agent-selected either way.
+- **`page.max_pages`** (default 1) is a hard ceiling; **`page.target_pages`** (optional) is
+  a floor. Coming in under the target is a real finding: ADD the next-highest-relevance
+  entries or expand the highlights of what's already there, guided by the relevance review.
+  If the catalogue genuinely has nothing more worth adding, **say so** — do not invent
+  material, and do not stretch margins or fonts.
+- **`section_titles` / `skill_labels`** set the rendered headers (e.g. Swedish). If the
+  resume is written in another language, set these too, or the page mixes languages. The
+  template supplies English only as a fallback.
+- **`voice.banned_phrases`** are rejected server-side anywhere in the content.
 
 ## Entry interview (catalogue enrichment)
 

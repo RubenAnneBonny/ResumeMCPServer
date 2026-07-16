@@ -118,15 +118,17 @@
 \end{center}
 
 <# ---------- Profile / Summary ---------- #>
+<# Section headers come from ui.section_titles (see render.resolve_ui, which #>
+<# fills any the config omits with the English defaults). #>
 <% if summary %>
-\section{\textbf{Profile}}
+\section{\textbf{<< ui.section_titles.profile|tex >>}}
 << summary|tex >>
 \vspace{-2mm}
 <% endif %>
 
 <# ---------- Education ---------- #>
 <% if education %>
-\section{\textbf{Education}}
+\section{\textbf{<< ui.section_titles.education|tex >>}}
 \begin{itemize}[leftmargin=0.05in, label={}]
 \small{
 <% for ed in education %>
@@ -149,7 +151,7 @@
 
 <# ---------- Experience ---------- #>
 <% if experience %>
-\section{\textbf{Experience}}
+\section{\textbf{<< ui.section_titles.experience|tex >>}}
 \begin{itemize}[leftmargin=0.05in, label={}]
 \small{
 <% for exp in experience %>
@@ -171,7 +173,7 @@
 <# ---------- Competitions and Projects ---------- #>
 <% set has_comp_proj = (competitions and competitions|length > 0) or (projects is defined and projects and projects|length > 0) %>
 <% if has_comp_proj %>
-\section{\textbf{Competitions and Projects}}
+\section{\textbf{<< ui.section_titles.projects|tex >>}}
 \begin{itemize}[leftmargin=0.05in, label={}]
 \small{
 <% if competitions %>
@@ -205,23 +207,36 @@
 \vspace{-16pt}
 <% endif %>
 
-<# ---------- Technical Skills ---------- #>
+<# ---------- Skills ---------- #>
+<# Two accepted shapes (see schemas.PersonalInfo.skills): a mapping of named #>
+<# sub-lists (labels from ui.skill_labels), or a FLAT list of strings, which #>
+<# renders as one comma-separated line. #>
 <% if skills %>
+<% if skills is mapping %>
 <% set has_skills = (skills.languages is defined and skills.languages) or (skills.frameworks is defined and skills.frameworks) or (skills.tools is defined and skills.tools) %>
 <% if has_skills %>
-\section{\textbf{Technical Skills}}
+\section{\textbf{<< ui.section_titles.skills|tex >>}}
 \begin{itemize}[leftmargin=0.05in, label={}]
 \small{
-<% if skills.languages is defined and skills.languages %>    \item{\textbf{Programming Languages}: << skills.languages|map("tex")|join(", ") >>}
+<% if skills.languages is defined and skills.languages %>    \item{\textbf{<< ui.skill_labels.languages|tex >>}: << skills.languages|map("tex")|join(", ") >>}
 <% endif %>
-<% if skills.frameworks is defined and skills.frameworks %>    \item{\textbf{Frameworks \& Libraries}: << skills.frameworks|map("tex")|join(", ") >>}
+<% if skills.frameworks is defined and skills.frameworks %>    \item{\textbf{<< ui.skill_labels.frameworks|tex >>}: << skills.frameworks|map("tex")|join(", ") >>}
 <% endif %>
-<% if skills.tools is defined and skills.tools %>    \item{\textbf{Developer Tools}: << skills.tools|map("tex")|join(", ") >>}
+<% if skills.tools is defined and skills.tools %>    \item{\textbf{<< ui.skill_labels.tools|tex >>}: << skills.tools|map("tex")|join(", ") >>}
 <% endif %>
-<% if skills.data_structures is defined and skills.data_structures %>    \item{\textbf{Data Structures}: << skills.data_structures|map("tex")|join(", ") >>}
+<% if skills.data_structures is defined and skills.data_structures %>    \item{\textbf{<< ui.skill_labels.data_structures|tex >>}: << skills.data_structures|map("tex")|join(", ") >>}
 <% endif %>
-<% if skills.algorithms is defined and skills.algorithms %>    \item{\textbf{Algorithms}: << skills.algorithms|map("tex")|join(", ") >>}
+<% if skills.algorithms is defined and skills.algorithms %>    \item{\textbf{<< ui.skill_labels.algorithms|tex >>}: << skills.algorithms|map("tex")|join(", ") >>}
 <% endif %>
+}
+\end{itemize}
+\vspace{-16pt}
+<% endif %>
+<% else %>
+\section{\textbf{<< ui.section_titles.skills|tex >>}}
+\begin{itemize}[leftmargin=0.05in, label={}]
+\small{
+    \item{<< skills|map("tex")|join(", ") >>}
 }
 \end{itemize}
 \vspace{-16pt}
@@ -230,7 +245,7 @@
 
 <# ---------- Voluntary Work ---------- #>
 <% if voluntary_work is defined and voluntary_work %>
-\section{\textbf{Voluntary Work and Engagements}}
+\section{\textbf{<< ui.section_titles.voluntary_work|tex >>}}
 \begin{itemize}[leftmargin=0.05in, label={}]
 \small{
 <% for v in voluntary_work %>
@@ -251,7 +266,7 @@
 
 <# ---------- Certifications ---------- #>
 <% if certifications is defined and certifications %>
-\section{\textbf{Certifications}}
+\section{\textbf{<< ui.section_titles.certifications|tex >>}}
 \begin{itemize}[leftmargin=0.05in, label={}]
 \small{
 <% for cert in certifications %>    \item{\textbf{<< cert.name|tex >>}<% if cert.issuer %> --- << cert.issuer|tex >><% endif %><% if cert.date %> (<< cert.date|tex >>)<% endif %>}
@@ -263,7 +278,7 @@
 
 <# ---------- Languages ---------- #>
 <% if languages is defined and languages %>
-\section{\textbf{Languages}}
+\section{\textbf{<< ui.section_titles.languages|tex >>}}
 \begin{itemize}[leftmargin=0.05in, label={}]
 \small{
 <% for lang in languages %>    \item{\textbf{<< lang.language|tex >>}: << lang.proficiency|tex >>}

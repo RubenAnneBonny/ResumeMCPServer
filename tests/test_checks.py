@@ -45,6 +45,95 @@ def test_page_check_fails_for_two_pages(tmp_path):
     assert "CUT" in res["message"]
 
 
+def test_page_check_no_target_ignores_underfill(tmp_path):
+    pdf = tmp_path / "r.pdf"
+    _make_pdf(pdf, 1)
+    res = checks.page_check(pdf, max_pages=2)  # no target_pages configured
+    assert res["ok"] is True
+    assert "target_pages" not in res
+
+
+def test_page_check_flags_underfill_against_target(tmp_path):
+    pdf = tmp_path / "r.pdf"
+    _make_pdf(pdf, 1)
+    res = checks.page_check(pdf, max_pages=2, target_pages=2)
+    assert res["ok"] is False
+    assert res["pages"] == 1
+    assert res["target_pages"] == 2
+    # Underfill must push toward ADDING real entries, never toward padding.
+    assert "ADD" in res["message"]
+    assert "pad" in res["message"].lower()
+
+
+def test_page_check_ok_when_target_met(tmp_path):
+    pdf = tmp_path / "r.pdf"
+    _make_pdf(pdf, 2)
+    res = checks.page_check(pdf, max_pages=2, target_pages=2)
+    assert res["ok"] is True
+
+
+def test_page_check_overflow_wins_over_target(tmp_path):
+    pdf = tmp_path / "r.pdf"
+    _make_pdf(pdf, 3)
+    res = checks.page_check(pdf, max_pages=2, target_pages=2)
+    assert res["ok"] is False
+    assert "CUT" in res["message"]
+
+
+def test_experience_coverage_flags_missing_ids():
+    catalogue = {
+        "experience": [
+            {"id": "a", "title": "Dev"},
+            {"id": "b", "title": "Analyst"},
+            {"id": "c", "title": "Intern"},
+        ]
+    }
+    content = {"experience": [{"id": "a"}]}
+    res = checks.experience_coverage_check(content, catalogue)
+    assert res["ok"] is False
+    assert res["missing_ids"] == ["b", "c"]
+    assert "Analyst" in res["message"]
+
+
+def test_experience_coverage_ok_when_all_present():
+    catalogue = {"experience": [{"id": "a"}, {"id": "b"}]}
+    content = {"experience": [{"id": "b"}, {"id": "a"}]}
+    res = checks.experience_coverage_check(content, catalogue)
+    assert res["ok"] is True
+    assert "missing_ids" not in res
+
+
+def test_experience_coverage_ok_on_empty_catalogue():
+    res = checks.experience_coverage_check({"experience": []}, {})
+    assert res["ok"] is True
+
+
+def test_find_banned_phrases_is_case_insensitive_and_reports_path():
+    content = {
+        "experience": [
+            {"highlights": [{"text": "ok"}, {"text": "Tillförde Perspektiv till teamet"}]}
+        ]
+    }
+    findings = checks.find_banned_phrases(content, ["tillförde perspektiv"])
+    assert len(findings) == 1
+    assert "tillförde perspektiv" in findings[0]
+    assert "experience[0].highlights[1].text" in findings[0]
+
+
+def test_find_banned_phrases_empty_list_is_noop():
+    assert checks.find_banned_phrases({"summary": "anything at all"}, []) == []
+    assert checks.find_banned_phrases({"summary": "anything at all"}, None) == []
+
+
+def test_find_banned_phrases_matches_substring_in_longer_text():
+    findings = checks.find_banned_phrases(
+        {"summary": "Kandidaten har gedigen kompetens inom analys."},
+        ["gedigen kompetens", "kvalificerat stöd"],
+    )
+    assert len(findings) == 1
+    assert "summary" in findings[0]
+
+
 def test_ats_check_flags_missing_name(tmp_path):
     pdf = tmp_path / "r.pdf"
     _make_pdf(pdf, 1)  # blank page -> no extractable text
